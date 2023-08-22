@@ -1,5 +1,5 @@
 # OmniQuant
-An efficient, accurate, and omnibearing quantization algorithm for LLMs, encompassing both weight-only quantization (W4A16/W3A16/W2A16) and weight-activation quantization (W8A8, W6A6, W4A4):
+An efficient, accurate, and omnibearing quantization algorithm for LLMs, encompassing both weight-only quantization (W4A16/W3A16/W2A16) and weight-activation quantization (W6A6, W4A4):
 ![teaser_1](imgs/teaser_1.png)
 OmniQuant introduces optimization into quantization, but also keeps the data and time efficiency like PTQ. For example, OmniQuant can quantize LLaMa-2 model family (7B-70B) on a single A100-40G GPU within 1-16 hours using 128 samples.
 ![teaser_2](imgs/teaser_2.png)
@@ -142,8 +142,11 @@ git clone https://huggingface.co/ChenMnZ/Llama-2-13b-chat-omniquant-w3a16g128asy
 
 ## Related Project
 [SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models](https://github.com/mit-han-lab/smoothquant)
+
 [AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration](https://github.com/mit-han-lab/llm-awq)
+
 [GPTQ: Accurate Post-training Compression for Generative Pretrained Transformers](https://arxiv.org/abs/2210.17323)
+
 [RPTQ: Reorder-Based Post-Training Quantization for Large Language Models](https://github.com/hahnyuan/RPTQ4LLM)
 
 ## Citation
