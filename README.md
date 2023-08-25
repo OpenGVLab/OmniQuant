@@ -1,13 +1,18 @@
 # OmniQuant
 An efficient, accurate, and omnibearing quantization algorithm for LLMs, encompassing both weight-only quantization (W4A16/W3A16/W2A16) and weight-activation quantization (W6A6, W4A4):
+
 ![teaser_1](imgs/teaser_1.png)
+
 OmniQuant introduces optimization into quantization, but also keeps the data and time efficiency like PTQ. For example, OmniQuant can quantize LLaMa-2 model family (7B-70B) on a single A100-40G GPU within 1-16 hours using 128 samples.
-![teaser_2](imgs/teaser_2.png)
+
+<div style="text-align: center;">
+<img src="./imgs/teaser_2.png" width="350" />
+</div>
 
 The current release supports:
 - OmniQuant algorithm for accurate weight-only quantization (`W4A16`/`W3A16`/`W2A16`) and weight-activation quantization (`W6A6`, `W4A4`)
 - Pre-trained Omniquant model zoo for LLMs (`LLaMA-1&2`, `LLaMA-2-Chat`, `OPT`; load to generate quantized weights).
-- A out-of-the-box case that leverages MLC-LLM to run LLaMa-2-Chat with W3A16g128 quantization 
+- A out-of-the-box case that leverages MLC-LLM to run LLaMa-2-Chat (7B/13B) with W3A16g128 quantization on **GPUs** and **mobile phones**.
 
 
 ## Contents
@@ -130,6 +135,22 @@ git clone https://huggingface.co/ChenMnZ/Llama-2-13b-chat-omniquant-w3a16g128asy
 ./mlc_chat_cli --local-id Llama-2-13b-chat-omniquant-w3a16g128asym --device-name cuda
 ```
 
+Specially, we also deploy the aforementioned two quantized models into mobile phones through MLC-LLM. You can download the Android app by simply clicking the button below:
+
+[<img src="./imgs/download.png" width="150"/>](https://github.com/OpenGVLab/OmniQuant/releases/download/v0.0.1/omniquant-mlc-llm.apk)
+
+This app includes two models, `LLaMa-2-7B-Chat-Omniquant-W3A16g128asym` and `LLaMa-2-13B-Chat-Omniquant-W3A16g128asym`. Please note that the 7G model requires a minimum of 4.5G free RAM to operate, while the 13G model necessitates at least 7.5G. Currently, this app is in its demo phase and may experience slower response times, so wait patiently for the generation of response. We have tested this app on Redmi Note 12 Turbo (Snapdragon 7+ Gen 2 and 16G RAM), some examples are as follows:
+- LLaMa-2-7B-Chat-Omniquant-W3A16g128asym
+<div style="text-align: center;">
+<img src="./imgs/7b_phone.png" width="450" />
+</div>
+
+- LLaMa-2-13B-Chat-Omniquant-W3A16g128asym
+<div style="text-align: center;">
+<img src="./imgs/13b_phone.png" width="450" />
+</div>
+
+
 ## Results
 - OmniQuant achieve SoTA performance in weight-only quantization
 ![weight_only](imgs/weight_only.png)
@@ -145,12 +166,19 @@ git clone https://huggingface.co/ChenMnZ/Llama-2-13b-chat-omniquant-w3a16g128asy
 
 [AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration](https://github.com/mit-han-lab/llm-awq)
 
-[GPTQ: Accurate Post-training Compression for Generative Pretrained Transformers](https://arxiv.org/abs/2210.17323)
+[GPTQ: Accurate Post-training Compression for Generative Pretrained Transformers](https://github.com/IST-DASLab/gptq)
 
 [RPTQ: Reorder-Based Post-Training Quantization for Large Language Models](https://github.com/hahnyuan/RPTQ4LLM)
+
+[MLC LLM](https://github.com/mlc-ai/mlc-llm)
 
 ## Citation
 If you use our OmniQuant approach in your research, please cite our paper:
 ```
-
+@article{OmniQuant,
+  title={OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models},
+  author={Wenqi Shao, Mengzhao Chen, Zhaoyang Zhang, Peng Xu, Lirui Zhao, Zhiqian Li, Kaipeng Zhang, Peng Gao, Yu Qiao, Ping Luo},
+  journal={arXiv preprint arXiv:},
+  year={2023}
+}
 ```

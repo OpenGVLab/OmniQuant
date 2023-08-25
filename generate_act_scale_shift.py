@@ -4,6 +4,7 @@ import os
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
+    AutoConfig
 )
 import argparse
 import torch.nn as nn
@@ -12,7 +13,12 @@ from datasets import load_dataset
 import functools
 from tqdm import tqdm
 from datautils import get_loaders
-import pdb
+try:
+    from llava.model import *   # required for llava
+except ImportError:
+    print("If want to quantize llave models, you should manually install llava from https://github.com/haotian-liu/LLaVA")
+
+# import pdb
 
 
 
@@ -91,8 +97,8 @@ def get_act_shifts(model, dataloader, num_samples=128):
 
 
 def build_model_and_tokenizer(model_name):
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     kwargs = {"torch_dtype": torch.float16, "device_map": "sequential"}
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
     return model, tokenizer
 
