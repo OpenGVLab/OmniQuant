@@ -139,17 +139,21 @@ Specially, we also deploy the aforementioned two quantized models into mobile ph
 
 [<img src="./imgs/download.png" width="150"/>](https://github.com/OpenGVLab/OmniQuant/releases/download/v0.0.1/omniquant-mlc-llm.apk)
 
-This app includes two models, `LLaMa-2-7B-Chat-Omniquant-W3A16g128asym` and `LLaMa-2-13B-Chat-Omniquant-W3A16g128asym`. Please note that the 7G model requires a minimum of 4.5G free RAM to operate, while the 13G model necessitates at least 7.5G. Currently, this app is in its demo phase and may experience slower response times, so wait patiently for the generation of response. We have tested this app on Redmi Note 12 Turbo (Snapdragon 7+ Gen 2 and 16G RAM), some examples are as follows:
+This app includes three models, `LLaMa-2-7B-Chat-Omniquant-W3A16g128asym`, `LLaMa-2-13B-Chat-Omniquant-W3A16g128asym`, and `LLaMa-2-13B-Chat-Omniquant-W2A16g128asym`. They require at least 4.5G, 7.5G, and 6.0G free RAM, respectively. Note that 2bit quantization has worse performance compared to 3bit quantization as shown in our paper. The inclusion of 2-bit quantization is just an extreme exploration about deploy LLM in mobile phones. Currently, this app is in its demo phase and may experience slower response times, so wait patiently for the generation of response. We have tested this app on Redmi Note 12 Turbo (Snapdragon 7+ Gen 2 and 16G RAM), some examples are provided below:
 - LLaMa-2-7B-Chat-Omniquant-W3A16g128asym
 <div style="text-align: center;">
-<img src="./imgs/7b_phone.png" width="450" />
+<img src="./imgs/7b_3bit_phone.png" width="500" />
 </div>
 
 - LLaMa-2-13B-Chat-Omniquant-W3A16g128asym
 <div style="text-align: center;">
-<img src="./imgs/13b_phone.png" width="450" />
+<img src="./imgs/13b_3bit_phone.png" width="500" />
 </div>
 
+- LLaMa-2-13B-Chat-Omniquant-W2A16g128asym
+<div style="text-align: center;">
+<img src="./imgs/13b_2bit_phone.png" width="500" />
+</div>
 
 ## Results
 - OmniQuant achieve SoTA performance in weight-only quantization
