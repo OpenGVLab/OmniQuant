@@ -19,6 +19,10 @@ from categories import subcategories, categories
 from models.int_llama_layer import QuantLlamaDecoderLayer
 from models.int_opt_layer import QuantOPTDecoderLayer
 from quantize.int_linear import QuantLinear
+try:
+    from llava.model import *   # required for llava
+except ImportError:
+    print("If want to quantize llave models, you should manually install llava from https://github.com/haotian-liu/LLaVA")
 
 
 torch.backends.cudnn.benchmark = True
@@ -40,6 +44,7 @@ net_choices = [
     "Llama-2-70b",
     "Llama-2-7b-chat",
     "Llama-2-13b-chat",
+    "llava-llama-2-13b-chat-lightning-preview"
 ]
 
 
@@ -229,9 +234,9 @@ def main():
     assert args.net in net_choices
     args.model_family = args.net.split('-')[0]
     lm = LMClass(args)
+    lm.seqlen = 2048
     lm.model.eval()
     logger.info("=== start quantization ===")
-
     tick = time.time() 
     
     # load calibration dataset
@@ -314,7 +319,7 @@ def main():
                 del module.weight_quantizer.lowbound_factor
                 del module.weight_quantizer.upbound_factor
             if isinstance(module,QuantLlamaDecoderLayer) or isinstance(module,QuantOPTDecoderLayer):
-                if args.smooth:
+                if args.let:
                     del module.qkv_smooth_scale
                     del module.qkv_smooth_shift
                     del module.out_smooth_scale
