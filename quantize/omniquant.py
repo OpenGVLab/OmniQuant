@@ -170,7 +170,6 @@ def omniquant(
                             weight = module.weight.max(dim=0)[0].clamp(min=1e-5)
                             scale = (act.pow(args.alpha)/weight.pow(1-args.alpha)).clamp(min=1e-5)
                             if use_shift and not is_llama:
-                            # if use_shift:
                                 shift = act_shifts[f'{layer_name_prefix}.{i}.{name}'].to(device=dev, dtype=dtype)
                             else:
                                 shift = torch.zeros_like(scale)
