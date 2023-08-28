@@ -181,8 +181,8 @@ If you use our OmniQuant approach in your research, please cite our paper:
 ```
 @article{OmniQuant,
   title={OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models},
-  author={Wenqi Shao, Mengzhao Chen, Zhaoyang Zhang, Peng Xu, Lirui Zhao, Zhiqian Li, Kaipeng Zhang, Peng Gao, Yu Qiao, Ping Luo},
-  journal={arXiv preprint arXiv:},
+  author={Shao, Wenqi and Chen,Mengzhao and  Zhang, Zhaoyang and Xu, Peng and Zhao, Lirui and Li, Zhiqian and Zhang, Kaipeng Zhang, and Gao, Peng, and Qiao, Yu, and Luo, Ping},
+  journal={arXiv preprint arXiv:2308.13137},
   year={2023}
 }
 ```

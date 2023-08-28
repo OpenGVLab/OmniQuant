@@ -60,7 +60,7 @@ class UniformAffineQuantizer(nn.Module):
         self.lwc = lwc
         
         init_value = 4.             # inti value of learnable weight clipping
-        if shape:
+        if lwc:
             if group_size:
                 dim1 = int(shape[0]*math.ceil(shape[1]/group_size))
                 self.deficiency = shape[-1]%group_size
@@ -71,7 +71,6 @@ class UniformAffineQuantizer(nn.Module):
                 dim1 = shape[0]
             self.upbound_factor = nn.Parameter(torch.ones(dim1,1).cuda()*init_value)
             self.lowbound_factor = nn.Parameter(torch.ones(dim1,1).cuda()*init_value)
-            self.lwc = True
         self.sigmoid = nn.Sigmoid()
 
         self.enable = True
