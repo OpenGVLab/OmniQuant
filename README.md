@@ -159,6 +159,12 @@ This app includes three models, `LLaMa-2-7B-Chat-Omniquant-W3A16g128asym`, `LLaM
 <img src="./imgs/13b_2bit_phone.png" width="500" />
 </div>
 
+We also have tested this app on iPhone 14 Pro (A16 Bionic and 6G RAM), some examples are provided below:
+- LLaMa-2-7B-Chat-Omniquant-W3A16g128asym
+<div style="text-align: center;">
+<img src="./imgs/7b_3bit_iphone.png" width="500" />
+</div>
+
 ## Results
 - OmniQuant achieve SoTA performance in weight-only quantization
 ![weight_only](imgs/weight_only.png)
