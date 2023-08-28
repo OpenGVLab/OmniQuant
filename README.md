@@ -1,4 +1,8 @@
 # OmniQuant
+
+[![arXiv](https://img.shields.io/badge/OmniQuant-2308.13137-b31b1b.svg)](https://arxiv.org/abs/2308.13137)
+[![GitHub Stars](https://img.shields.io/github/stars/OpenGVLab/OmniQuant.svg?style=social&label=Star&maxAge=60)](https://github.com/OpenGVLab/OmniQuant)🔥🔥🔥
+  
 An efficient, accurate, and omnibearing quantization algorithm for LLMs, encompassing both weight-only quantization (W4A16/W3A16/W2A16) and weight-activation quantization (W6A6, W4A4):
 
 ![teaser_1](imgs/teaser_1.png)
