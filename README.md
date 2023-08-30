@@ -41,7 +41,7 @@ pip install -e .
 ## OmniQuant Model Zoo
 We provide pre-trained Omniquant model zoo for multiple model families, including LLaMa-1&2, LLaMa-2-Chat, OPT.
 
-You can download the pre-trained model you nedd at [Huggingface](https://huggingface.co/ChenMnZ/OmniQuant/tree/main).
+You can download the pre-trained model you need at [Huggingface](https://huggingface.co/ChenMnZ/OmniQuant/tree/main).
 
 The detailed support list:
 | Models  | Sizes                           | W2A16 | W2A16g128 | W2A16g64 | W3A16 |
