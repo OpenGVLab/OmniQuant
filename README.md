@@ -1,22 +1,15 @@
-# OmniQuant
+# OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models
 
 [![arXiv](https://img.shields.io/badge/OmniQuant-2308.13137-b31b1b.svg)](https://arxiv.org/abs/2308.13137)
 [![GitHub Stars](https://img.shields.io/github/stars/OpenGVLab/OmniQuant.svg?style=social&label=Star&maxAge=60)](https://github.com/OpenGVLab/OmniQuant)🔥🔥🔥
   
-An efficient, accurate, and omnibearing quantization algorithm for LLMs, encompassing both weight-only quantization (W4A16/W3A16/W2A16) and weight-activation quantization (W6A6, W4A4):
 
-![teaser_1](imgs/teaser_1.png)
+![omniquant](imgs/omniquant.png)
 
-OmniQuant introduces optimization into quantization, but also keeps the data and time efficiency like PTQ. For example, OmniQuant can quantize LLaMa-2 model family (7B-70B) on a single A100-40G GPU within 1-16 hours using 128 samples.
-
-<div style="text-align: center;">
-<img src="./imgs/teaser_2.png" width="350" />
-</div>
-
-The current release supports:
+OmniQuant is a simple and powerful quantization technique for LLMs. The current release supports:
 - OmniQuant algorithm for accurate weight-only quantization (`W4A16`/`W3A16`/`W2A16`) and weight-activation quantization (`W6A6`, `W4A4`)
 - Pre-trained Omniquant model zoo for LLMs (`LLaMA-1&2`, `LLaMA-2-Chat`, `OPT`; load to generate quantized weights).
-- A out-of-the-box case that leverages MLC-LLM to run LLaMa-2-Chat (7B/13B) with W3A16g128 quantization on **GPUs** and **mobile phones**.
+- A out-of-the-box case that leverages MLC-LLM to run LLaMa-2-Chat (7B/13B) with W3A16g128 quantization on GPUs and mobile phones.
 
 
 ## Contents
