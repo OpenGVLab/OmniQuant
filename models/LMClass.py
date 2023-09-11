@@ -22,7 +22,8 @@ class LMClass(BaseLM):
         self.model_config = args.model
         config = AutoConfig.from_pretrained(args.model)
         self.tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False,legacy=False)
-        self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=torch.float16,)
+        # self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=config.torch_dtype)
+        self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=torch.float16)
         self.seqlen = self.model.config.max_position_embeddings
         self.model.eval()
         self.vocab_size = self.tokenizer.vocab_size
@@ -86,7 +87,6 @@ class LMClass(BaseLM):
             return self.model(inps)["logits"]
 
     def model_batched_set(self, inps):
-        pdb.set_trace()
         dataset_logits = []
         for batch in inps:
             multi_logits = F.log_softmax(

@@ -2,16 +2,20 @@ import torch
 import torch.nn as nn
 from models.int_llama_layer import QuantLlamaDecoderLayer
 from models.int_opt_layer import QuantOPTDecoderLayer
+from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
+import auto_gptq.nn_modules.qlinear.qlinear_cuda as qlinear_cuda
 import copy
 import math
 import utils
 import os
 import pdb
+import gc
 
 
 
-
+def get_named_linears(module):
+    return {name: m for name, m in module.named_modules() if isinstance(m, QuantLinear)}
 
 
 def omniquant(
@@ -57,8 +61,15 @@ def omniquant(
             'fc1':'fc1'
         }
         layer_name_prefix = 'model.decoder.layers'
+    elif 'falcon' in args.model:
+        layers = model.transformer.h
+        model.transformer.word_embeddings.to(dev)
+        model.transformer.ln_f.to(dev)
+        model.lm_head.to(dev)
+        DecoderLayer = QuantFalconDecoderLayer
+        layer_name_prefix = 'model.transformer.h'
     else:
-        raise ValueError("Only support for opt/llama/Llama-2 now")
+        raise ValueError("Only support for opt/llama/Llama-2/falcon now")
     
     
     layers[0] = layers[0].to(dev)
@@ -108,8 +119,10 @@ def omniquant(
             model.model.decoder.project_out = model.model.decoder.project_out.cpu()
         if hasattr(model.model.decoder, "project_in") and model.model.decoder.project_in:
             model.model.decoder.project_in = model.model.decoder.project_in.cpu()
+    elif 'falcon' in args.model:
+        model.transformer.word_embeddings =  model.transformer.word_embeddings.cpu()
     else:
-        raise ValueError("Only support for opt/llama/Llama-2 now")
+        raise ValueError("Only support for opt/llama/Llama-2/falcon now")
     torch.cuda.empty_cache()
 
     
@@ -179,6 +192,7 @@ def omniquant(
         if args.resume:
             qlayer.load_state_dict(omni_parameters[i], strict=False)
         
+
         if args.epochs > 0:
             with torch.no_grad():
                 qlayer.float()      # required for AMP training
@@ -229,15 +243,40 @@ def omniquant(
         else:
             qlayer.half()
             layers[i] = qlayer.to("cpu")
-
-        
+        if args.real_quant:
+            named_linears = get_named_linears(qlayer)
+            for name, module in named_linears.items():
+                scales = module.weight_quantizer.scale
+                zeros = module.weight_quantizer.round_zero_point
+                group_size = module.weight_quantizer.group_size
+                dim0 = module.weight.shape[0]
+                scales = scales.view(dim0,-1)
+                zeros = zeros.view(dim0,-1)
+                # q_linear = qlinear_triton.QuantLinear(args.wbits, group_size, module.in_features,module.out_features,not module.bias is None)
+                q_linear = qlinear_cuda.QuantLinear(args.wbits, group_size, module.in_features,module.out_features,not module.bias is None)
+                q_linear.pack(module.float().cpu(),  scales.float().cpu(), zeros.float().cpu())
+                
+                levels = name.split('.')
+                if len(levels) > 1:
+                    mod_ = qlayer
+                    for l_idx in range(len(levels)-1):
+                        if levels[l_idx].isdigit():
+                            mod_ = mod_[int(levels[l_idx])]
+                        else:
+                            mod_ = getattr(mod_, levels[l_idx])
+                    setattr(mod_, levels[-1], q_linear)
+                else:
+                    setattr(qlayer, name, q_linear)        
+                del module        
         del layer
         torch.cuda.empty_cache()
 
+    del inps
     del quant_inps
     del fp_inps
     del fp_inps_2
     torch.cuda.empty_cache()
+    gc.collect()                    
     model.config.use_cache = use_cache
     return model
 

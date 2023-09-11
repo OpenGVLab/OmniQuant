@@ -17,6 +17,7 @@ class OmniLayerNorm(nn.Module):
             self.register_buffer('bias',ori_layer_norm.bias)
         else:
             self.bias = None
+        self.eps = ori_layer_norm.eps
         self.norm_func = nn.functional.layer_norm
         self.normalized_shape = ori_layer_norm.normalized_shape
         self.use_temporary_parameter = False
@@ -29,7 +30,7 @@ class OmniLayerNorm(nn.Module):
         else:
             weight = self.weight
             bias = self.bias
-        out = self.norm_func(x,self.normalized_shape,weight, bias)
+        out = self.norm_func(x,self.normalized_shape,weight, bias,eps=self.eps)
         return out
 
     def set_quant_state(self, use_weight_quant, use_act_quant):

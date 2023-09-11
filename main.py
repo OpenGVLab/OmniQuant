@@ -24,6 +24,8 @@ try:
 except ImportError:
     print("If want to quantize llave models, you should manually install llava from https://github.com/haotian-liu/LLaVA")
 
+import pdb
+
 
 torch.backends.cudnn.benchmark = True
 
@@ -44,7 +46,9 @@ net_choices = [
     "Llama-2-70b",
     "Llama-2-7b-chat",
     "Llama-2-13b-chat",
-    "llava-llama-2-13b-chat-lightning-preview"
+    "llava-llama-2-13b-chat-lightning-preview",
+    "falcon-180b",
+    "falcon-7b",
 ]
 
 
@@ -72,11 +76,23 @@ def evaluate(lm, args, logger):
             lm.model.model.embed_tokens.to(input_device)
             lm.model.model.norm.to(output_device)
             lm.model.lm_head.to(output_device)
+        elif "falcon" in args.model:
+            map_layers_to_multi_gpus(lm.model.transformer.h)
+            input_device = lm.model.transformer.h[0].device
+            output_device = lm.model.transformer.h[-1].device
+            assert input_device == output_device
+            lm._device = input_device
+            lm.model.transformer.word_embeddings.to(input_device)
+            lm.model.transformer.ln_f.to(output_device)
+            lm.model.lm_head.to(output_device)
     else:
         if "opt" in args.model:
             lm.model.model.decoder = lm.model.model.decoder.to(lm.device)
         elif "llama" in args.model or "Llama" in args.model:
             lm.model = lm.model.to(lm.device)
+        elif "falcon" in args.model:
+            lm.model.transformer = lm.model.transformer.to(lm.device)
+
 
     if args.eval_ppl:
         for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
@@ -102,15 +118,14 @@ def evaluate(lm, args, logger):
             lm.model.config.use_cache = False
             lm.model.eval()
             nlls = []
-
             for i in tqdm(range(nsamples)):
-                batch = testenc[:, (i * lm.seqlen) : ((i + 1) * lm.seqlen)].to(
-                    lm.device
-                )
+                batch = testenc[:, (i * lm.seqlen) : ((i + 1) * lm.seqlen)].to(lm.device)
                 if "opt" in args.model:
                     outputs = lm.model.model.decoder(batch)
                 elif "llama" in args.model or "Llama" in args.model:
                     outputs = lm.model.model(batch)
+                elif "falcon" in args.model:
+                    outputs = lm.model.transformer(batch)
                 hidden_states = outputs[0]
                 logits = lm.model.lm_head(hidden_states)
                 shift_logits = logits[:, :-1, :]
@@ -181,6 +196,7 @@ def main():
     parser.add_argument("--output_dir", default="../log/", type=str, help="direction of logging file")
     parser.add_argument("--save_dir", default=None, type=str, help="direction for saving fake quantization model")
     parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--real_quant", default=False, action="store_true",)
     parser.add_argument("--calib_dataset",type=str,default="wikitext2",
         choices=["wikitext2", "ptb", "c4", "mix","pile"],
         help="Where to extract calibration data from.",
@@ -231,29 +247,15 @@ def main():
     
     # load model
     args.net = args.model.split('/')[-1]
-    assert args.net in net_choices
+    # assert args.net in net_choices
     args.model_family = args.net.split('-')[0]
     lm = LMClass(args)
     lm.seqlen = 2048
     lm.model.eval()
-    logger.info("=== start quantization ===")
-    tick = time.time() 
+    for param in lm.model.parameters():
+        param.requires_grad = False
+
     
-    # load calibration dataset
-    cache_dataloader = f'{args.cache_dir}/dataloader_{args.model_family}_{args.calib_dataset}_{args.nsamples}.cache'
-    if os.path.exists(cache_dataloader):
-        dataloader = torch.load(cache_dataloader)
-        logger.info(f"load calibration from {cache_dataloader}")
-    else:
-        dataloader, _ = get_loaders(
-            args.calib_dataset,
-            nsamples=args.nsamples,
-            seed=args.seed,
-            model=args.model,
-            seqlen=lm.seqlen,
-        )
-        torch.save(dataloader, cache_dataloader)
-        
 
     args.weight_quant_params = {
         "n_bits": args.wbits,
@@ -296,22 +298,40 @@ def main():
         gpu_id = get_lowest_occupied_gpu(wait_memory=5000)
         lm._device = f"cuda:{gpu_id}"
         logger.info(f"set quantization in gpu {gpu_id}")
-    
-    
-    # omniquant
-    act_scales = torch.load(f'./act_scales/{args.net}.pt')
-    act_shifts = torch.load(f'./act_shifts/{args.net}.pt')
-    omniquant(
-        lm,
-        args,
-        dataloader,
-        act_scales,
-        act_shifts,
-        logger,
-    )
 
-    logger.info(time.time() - tick)
 
+    # quantization
+    if args.wbits < 16 or args.abits <16:
+        logger.info("=== start quantization ===")
+        tick = time.time()     
+        # load calibration dataset
+        cache_dataloader = f'{args.cache_dir}/dataloader_{args.model_family}_{args.calib_dataset}_{args.nsamples}.cache'
+        if os.path.exists(cache_dataloader):
+            dataloader = torch.load(cache_dataloader)
+            logger.info(f"load calibration from {cache_dataloader}")
+        else:
+            dataloader, _ = get_loaders(
+                args.calib_dataset,
+                nsamples=args.nsamples,
+                seed=args.seed,
+                model=args.model,
+                seqlen=lm.seqlen,
+            )
+            torch.save(dataloader, cache_dataloader)    
+        act_scales = None
+        act_shifts = None
+        if args.let:
+            act_scales = torch.load(f'./act_scales/{args.net}.pt')
+            act_shifts = torch.load(f'./act_shifts/{args.net}.pt')
+        omniquant(
+            lm,
+            args,
+            dataloader,
+            act_scales,
+            act_shifts,
+            logger,
+        )
+        logger.info(time.time() - tick)
     if args.save_dir:
         # delete omni parameters
         for name, module in lm.model.named_modules():

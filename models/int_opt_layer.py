@@ -47,19 +47,16 @@ class QuantOPTAttention(nn.Module):
             org_module.k_proj,
             args.weight_quant_params,
             args.act_quant_params,
-            disable_input_quant=False,
         )
         self.v_proj = QuantLinear(
             org_module.v_proj,
             args.weight_quant_params,
             args.act_quant_params,
-            disable_input_quant=False,
         )
         self.q_proj = QuantLinear(
             org_module.q_proj,
             args.weight_quant_params,
             args.act_quant_params,
-            disable_input_quant=False,
         )
         self.out_proj = QuantLinear(
             org_module.out_proj, args.weight_quant_params, args.act_quant_params
@@ -141,7 +138,6 @@ class QuantOPTAttention(nn.Module):
 
         src_len = key_states.size(1)
         attn_weights = self.qkt_matmul(query_states, key_states.transpose(1, 2))
-        # attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
@@ -258,7 +254,6 @@ class QuantOPTDecoderLayer(nn.Module):
             ori_layer.fc1,
             weight_quant_params=args.weight_quant_params,
             act_quant_params=args.act_quant_params,
-            disable_input_quant=False,       # LN norm特殊处理了
         )
         self.fc2 = QuantLinear(
             ori_layer.fc2,
