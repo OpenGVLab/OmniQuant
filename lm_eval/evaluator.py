@@ -63,12 +63,8 @@ def simple_evaluate(
         task_names = pattern_match(tasks.split(","), lm_eval.tasks.ALL_TASKS)
     assert tasks != [], "No tasks specified"
     print(f"Selected Tasks: {task_names}")
-    # import pdb
-    # pdb.set_trace()
     task_dict = lm_eval.tasks.get_task_dict(task_names)
 
-    # if check_integrity:
-    #     run_task_tests(task_list=tasks)
 
     results = evaluate(
         lm=lm,

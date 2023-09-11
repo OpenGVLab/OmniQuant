@@ -66,11 +66,11 @@ class UniformAffineQuantizer(nn.Module):
                 self.deficiency = shape[-1]%group_size
                 if self.deficiency > 0:
                     self.deficiency = group_size - self.deficiency
-                    assert self.symmetric   # support for mlc-llm quantization
+                    assert self.symmetric   # support for mlc-llm symmetric quantization
             else:
                 dim1 = shape[0]
-            self.upbound_factor = nn.Parameter(torch.ones(dim1,1).cuda()*init_value)
-            self.lowbound_factor = nn.Parameter(torch.ones(dim1,1).cuda()*init_value)
+            self.upbound_factor = nn.Parameter(torch.ones((dim1,1)).cuda()*init_value)
+            self.lowbound_factor = nn.Parameter(torch.ones((dim1,1)).cuda()*init_value)
         self.sigmoid = nn.Sigmoid()
 
         self.enable = True
@@ -142,5 +142,6 @@ class UniformAffineQuantizer(nn.Module):
             range = xmax - xmin
             scale = range / (2**self.n_bits-1)
             self.scale = scale.clamp(min=CLIPMIN, max=1e4)
+            self.scale = scale
             zero_point = -(xmin) / (self.scale)
         self.round_zero_point = zero_point.clamp(min=-1e4, max=1e4).round()

@@ -16,5 +16,6 @@ huggingface/
 log/
 act_scales/
 act_shifts/
+pre_quantized_models/
 temp.sh
 

@@ -73,19 +73,16 @@ class QuantLlamaAttention(nn.Module):
             org_module.k_proj,
             args.weight_quant_params,
             args.act_quant_params,
-            disable_input_quant=False,
         )
         self.v_proj = QuantLinear(
             org_module.v_proj,
             args.weight_quant_params,
             args.act_quant_params,
-            disable_input_quant=False,
         )
         self.q_proj = QuantLinear(
             org_module.q_proj,
             args.weight_quant_params,
             args.act_quant_params,
-            disable_input_quant=False,
         )
         self.o_proj = QuantLinear(
             org_module.o_proj, args.weight_quant_params, args.act_quant_params
@@ -164,7 +161,6 @@ class QuantLlamaAttention(nn.Module):
         attn_weights = self.pv_matmul.quant_x1(attn_weights)
         value_states = self.pv_matmul.quant_x2(value_states)
         attn_output = self.pv_matmul(attn_weights, value_states)
-        attn_output = torch.matmul(attn_weights, value_states)
 
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
             raise ValueError(
