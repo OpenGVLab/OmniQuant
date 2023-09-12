@@ -42,7 +42,12 @@ num_gpus = torch.cuda.device_count()
 def get_gpu_memory():
     memory_info = []
     gpu_memory_info = nvidia_smi_memory_info()
-    gpu_index = [int(k) for k in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
+
+    try:
+        gpu_index = [int(k) for k in os.environ['CUDA_VISIBLE_DEVICES'].split(',')]
+    except KeyError:
+        gpu_index = [x["id"] for x in gpu_memory_info]
+
     for gpu_id, i in enumerate( gpu_index):
         gpu = gpu_memory_info[i]
         total_memory = gpu["total_memory"]

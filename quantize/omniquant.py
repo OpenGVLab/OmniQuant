@@ -35,19 +35,19 @@ def omniquant(
     use_cache = model.config.use_cache
     model.config.use_cache = False
     is_llama = False
-    if 'llama' in args.model or 'Llama' in args.model:
+    if "llama" in args.net.lower():
         is_llama = True
         layers = model.model.layers
         model.model.embed_tokens = model.model.embed_tokens.to(dev)
         model.model.norm = model.model.norm.to(dev)
         DecoderLayer = QuantLlamaDecoderLayer
         pairs = {
-            'q_proj':'qkv',
-            'o_proj':'out',
-            'up_proj':'fc1'
+            "q_proj":"qkv",
+            "o_proj":"out",
+            "up_proj":"fc1"
         }
-        layer_name_prefix = 'model.layers'
-    elif 'opt' in args.model:
+        layer_name_prefix = "model.layers"
+    elif "opt" in args.net.lower():
         layers = model.model.decoder.layers
         model.model.decoder.embed_tokens = model.model.decoder.embed_tokens.to(dev)
         model.model.decoder.embed_positions = model.model.decoder.embed_positions.to(dev)
@@ -57,18 +57,18 @@ def omniquant(
             model.model.decoder.project_in = model.model.decoder.project_in.to(dev)
         DecoderLayer = QuantOPTDecoderLayer
         pairs = {
-            'q_proj':'qkv',
-            'out_proj':'out',
-            'fc1':'fc1'
+            "q_proj":"qkv",
+            "out_proj":"out",
+            "fc1":"fc1"
         }
-        layer_name_prefix = 'model.decoder.layers'
-    elif 'falcon' in args.model:
+        layer_name_prefix = "model.decoder.layers"
+    elif "falcon" in args.net.lower():
         layers = model.transformer.h
         model.transformer.word_embeddings.to(dev)
         model.transformer.ln_f.to(dev)
         model.lm_head.to(dev)
         DecoderLayer = QuantFalconDecoderLayer
-        layer_name_prefix = 'model.transformer.h'
+        layer_name_prefix = "model.transformer.h"
     else:
         raise ValueError("Only support for opt/llama/Llama-2/falcon now")
     
@@ -97,7 +97,7 @@ def omniquant(
             cache["i"] += 1
             cache["attention_mask"] = kwargs["attention_mask"]
             if self.is_llama:
-                cache['position_ids'] = kwargs['position_ids']
+                cache["position_ids"] = kwargs["position_ids"]
             raise ValueError
 
     layers[0] = Catcher(layers[0])
@@ -115,10 +115,10 @@ def omniquant(
     # move embedding layer and first layer to cpu
     layers[0] = layers[0].module
     layers[0] = layers[0].cpu()
-    if 'llama' in args.model or 'Llama' in args.model:
+    if "llama" in args.net.lower():
         model.model.embed_tokens = model.model.embed_tokens.cpu()
         model.model.norm = model.model.norm.cpu()
-    elif 'opt' in args.model:
+    elif "opt" in args.net.lower():
         model.model.decoder.embed_tokens = model.model.decoder.embed_tokens.cpu()
         model.model.decoder.embed_positions = model.model.decoder.embed_positions.cpu()
         if hasattr(model.model.decoder, "project_out") and model.model.decoder.project_out:
@@ -141,7 +141,7 @@ def omniquant(
     attention_mask_batch = attention_mask.repeat(args.batch_size,1,1,1) if args.deactive_amp else attention_mask.repeat(args.batch_size,1,1,1).float()
     loss_func = torch.nn.MSELoss()
     if is_llama:
-        position_ids = cache['position_ids']
+        position_ids = cache["position_ids"]
     else:
         position_ids = None
 
@@ -185,11 +185,11 @@ def omniquant(
                 if isinstance(module, QuantLinear):
                     for key in pairs.keys():
                         if key in name:
-                            act = act_scales[f'{layer_name_prefix}.{i}.{name}'].to(device=dev, dtype=dtype).clamp(min=1e-5)
+                            act = act_scales[f"{layer_name_prefix}.{i}.{name}"].to(device=dev, dtype=dtype).clamp(min=1e-5)
                             weight = module.weight.max(dim=0)[0].clamp(min=1e-5)
                             scale = (act.pow(args.alpha)/weight.pow(1-args.alpha)).clamp(min=1e-5)
                             if use_shift and not is_llama:
-                                shift = act_shifts[f'{layer_name_prefix}.{i}.{name}'].to(device=dev, dtype=dtype)
+                                shift = act_shifts[f"{layer_name_prefix}.{i}.{name}"].to(device=dev, dtype=dtype)
                             else:
                                 shift = torch.zeros_like(scale)
                             qlayer.register_parameter(f"{pairs[key]}_smooth_shift",torch.nn.Parameter(shift))
@@ -204,7 +204,7 @@ def omniquant(
                 qlayer.float()      # required for AMP training
             # create optimizer
             optimizer = torch.optim.AdamW(
-                [{'params':qlayer.let_parameters(use_shift),'lr':args.let_lr}, {'params':qlayer.lwc_parameters(),'lr':args.lwc_lr}],weight_decay=args.wd)
+                [{"params":qlayer.let_parameters(use_shift),"lr":args.let_lr}, {"params":qlayer.lwc_parameters(),"lr":args.lwc_lr}],weight_decay=args.wd)
             loss_scaler = utils.NativeScalerWithGradNormCount()
             
             for epochs in range(args.epochs):
@@ -246,7 +246,7 @@ def omniquant(
             qlayer.half()
             layers[i] = qlayer.to("cpu")
             omni_parameters[i] = qlayer.omni_state_dict()
-            torch.save(omni_parameters, os.path.join(args.output_dir, f'omni_parameters.pth'))
+            torch.save(omni_parameters, os.path.join(args.output_dir, f"omni_parameters.pth"))
         else:
             qlayer.register_scales_and_zeros()
             qlayer.half()
