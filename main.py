@@ -223,6 +223,7 @@ def main():
     parser.add_argument("--w_dynamic_method", type=str, default="per_channel", choices=["per_channel"])
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--multigpu", action="store_true", help="at eval, map model to multiple gpus")
+    parser.add_argument("--deactive_amp", action="store_true", help="deactivate AMP when 8<=bits<16")
 
     args = parser.parse_args()
     random.seed(args.seed)
@@ -233,6 +234,9 @@ def main():
     # check
     if args.epochs > 0:
         assert args.lwc or args.let
+        
+    if (args.wbits<16 and args.wbits>=8) or (args.abits<16 and args.abits>=8):
+        args.deactive_amp = True
 
     # init logger
     if args.output_dir:

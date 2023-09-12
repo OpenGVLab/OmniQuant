@@ -444,3 +444,9 @@ class QuantOPTDecoderLayer(nn.Module):
                 destination[prefix + name] = param if keep_vars else param.detach()
         return destination
     
+
+    def register_scales_and_zeros(self):
+        for name, module in self.named_modules():
+            if isinstance(module, QuantLinear):
+                module.weight_quantizer.register_scales_and_zeros()
+    

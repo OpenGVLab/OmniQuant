@@ -176,6 +176,8 @@ We also have tested this app on iPhone 14 Pro (A16 Bionic and 6G RAM), some exam
 
 [MLC LLM](https://github.com/mlc-ai/mlc-llm)
 
+[AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ)
+
 ## Citation
 If you use our OmniQuant approach in your research, please cite our paper:
 ```
