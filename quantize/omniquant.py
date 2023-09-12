@@ -5,6 +5,7 @@ from models.int_opt_layer import QuantOPTDecoderLayer
 from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
 import auto_gptq.nn_modules.qlinear.qlinear_cuda as qlinear_cuda
+from contextlib import nullcontext
 import copy
 import math
 import utils
@@ -73,7 +74,12 @@ def omniquant(
     
     
     layers[0] = layers[0].to(dev)
-    dtype = next(iter(model.parameters())).dtype
+    if args.deactive_amp and args.epochs>0:
+        dtype = torch.float
+        traincast = nullcontext
+    else:
+        dtype = torch.float16
+        traincast = torch.cuda.amp.autocast
     inps = torch.zeros(
         (args.nsamples, lm.seqlen, model.config.hidden_size), dtype=dtype, device=dev
     )
@@ -132,7 +138,7 @@ def omniquant(
     fp_inps_2 = copy.deepcopy(inps) if args.aug_loss else None # take output of quantization model as input
     
     attention_mask = cache["attention_mask"]
-    attention_mask_batch = attention_mask.repeat(args.batch_size,1,1,1)
+    attention_mask_batch = attention_mask.repeat(args.batch_size,1,1,1) if args.deactive_amp else attention_mask.repeat(args.batch_size,1,1,1).float()
     loss_func = torch.nn.MSELoss()
     if is_llama:
         position_ids = cache['position_ids']
@@ -207,7 +213,7 @@ def omniquant(
                 for j in range(args.nsamples//args.batch_size):    
                     index = j * args.batch_size
                     # obtain output of quantization model
-                    with torch.cuda.amp.autocast():
+                    with traincast():
                         qlayer.smooth_and_quant_temporary()
                         quant_out = qlayer(quant_inps[index:index+args.batch_size,], attention_mask=attention_mask_batch,position_ids=position_ids)[0]
                         loss = loss_func(fp_inps[index:index+args.batch_size,], quant_out)
@@ -236,23 +242,24 @@ def omniquant(
                 with torch.cuda.amp.autocast():
                     for j in range(args.nsamples):
                         quant_inps[j] = qlayer(quant_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
+            qlayer.register_scales_and_zeros()
             qlayer.half()
             layers[i] = qlayer.to("cpu")
             omni_parameters[i] = qlayer.omni_state_dict()
             torch.save(omni_parameters, os.path.join(args.output_dir, f'omni_parameters.pth'))
         else:
+            qlayer.register_scales_and_zeros()
             qlayer.half()
             layers[i] = qlayer.to("cpu")
         if args.real_quant:
             named_linears = get_named_linears(qlayer)
             for name, module in named_linears.items():
-                scales = module.weight_quantizer.scale
-                zeros = module.weight_quantizer.round_zero_point
+                scales = module.weight_quantizer.scales
+                zeros = module.weight_quantizer.zeros
                 group_size = module.weight_quantizer.group_size
                 dim0 = module.weight.shape[0]
                 scales = scales.view(dim0,-1)
                 zeros = zeros.view(dim0,-1)
-                # q_linear = qlinear_triton.QuantLinear(args.wbits, group_size, module.in_features,module.out_features,not module.bias is None)
                 q_linear = qlinear_cuda.QuantLinear(args.wbits, group_size, module.in_features,module.out_features,not module.bias is None)
                 q_linear.pack(module.float().cpu(),  scales.float().cpu(), zeros.float().cpu())
                 

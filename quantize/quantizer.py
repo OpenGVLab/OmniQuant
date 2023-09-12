@@ -145,3 +145,9 @@ class UniformAffineQuantizer(nn.Module):
             self.scale = scale
             zero_point = -(xmin) / (self.scale)
         self.round_zero_point = zero_point.clamp(min=-1e4, max=1e4).round()
+        
+    def register_scales_and_zeros(self):
+        self.register_buffer('scales', self.scale)
+        self.register_buffer('zeros', self.round_zero_point)
+        del self.scale
+        del self.round_zero_point
