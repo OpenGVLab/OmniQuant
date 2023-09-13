@@ -35,7 +35,7 @@ pip install --upgrade pip
 pip install -e .
 ```
 
-We also leverage the kernel from [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) to achieve real quantization. So you should also install the bug-fixed AUtoGPTQ as follows:
+We also leverage the kernel from [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) to achieve real quantization. So you should also install the bug-fixed AutoGPTQ as follows:
 ```
 git clone https://github.com/ChenMnZ/AutoGPTQ-bugfix
 pip install -v .
