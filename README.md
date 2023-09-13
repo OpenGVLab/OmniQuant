@@ -4,7 +4,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/OpenGVLab/OmniQuant.svg?style=social&label=Star&maxAge=60)](https://github.com/OpenGVLab/OmniQuant)🔥🔥🔥
   
 
-![omniquant](imgs/omniquant.png)
+![omniquant](imgs/OmniQuant.png)
 
 OmniQuant is a simple and powerful quantization technique for LLMs. The current release supports:
 - OmniQuant algorithm for accurate weight-only quantization (`W4A16`/`W3A16`/`W2A16`) and weight-activation quantization (`W6A6`, `W4A4`)
