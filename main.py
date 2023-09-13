@@ -56,7 +56,7 @@ net_choices = [
 def evaluate(lm, args, logger):
     results = {}
     if args.multigpu:
-        if "opt" in args.model:
+        if "opt" in args.net.lower():
             map_layers_to_multi_gpus(lm.model.model.decoder.layers)
             input_device = lm.model.model.decoder.layers[0].device
             output_device = lm.model.model.decoder.layers[-1].device
@@ -67,7 +67,7 @@ def evaluate(lm, args, logger):
             lm.model.model.decoder.final_layer_norm.to(output_device)
             lm.model.lm_head.to(output_device)
 
-        elif "llama" in args.model or "Llama" in args.model:
+        elif "llama" in args.net.lower():
             map_layers_to_multi_gpus(lm.model.model.layers)
             input_device = lm.model.model.layers[0].device
             output_device = lm.model.model.layers[-1].device
@@ -76,7 +76,7 @@ def evaluate(lm, args, logger):
             lm.model.model.embed_tokens.to(input_device)
             lm.model.model.norm.to(output_device)
             lm.model.lm_head.to(output_device)
-        elif "falcon" in args.model:
+        elif "falcon" in args.net.lower():
             map_layers_to_multi_gpus(lm.model.transformer.h)
             input_device = lm.model.transformer.h[0].device
             output_device = lm.model.transformer.h[-1].device
@@ -86,11 +86,11 @@ def evaluate(lm, args, logger):
             lm.model.transformer.ln_f.to(output_device)
             lm.model.lm_head.to(output_device)
     else:
-        if "opt" in args.model:
+        if "opt" in args.net.lower():
             lm.model.model.decoder = lm.model.model.decoder.to(lm.device)
-        elif "llama" in args.model or "Llama" in args.model:
+        elif "llama" in args.net.lower():
             lm.model = lm.model.to(lm.device)
-        elif "falcon" in args.model:
+        elif "falcon" in args.net.lower():
             lm.model.transformer = lm.model.transformer.to(lm.device)
 
 
@@ -120,9 +120,9 @@ def evaluate(lm, args, logger):
             nlls = []
             for i in tqdm(range(nsamples)):
                 batch = testenc[:, (i * lm.seqlen) : ((i + 1) * lm.seqlen)].to(lm.device)
-                if "opt" in args.model:
+                if "opt" in args.net.lower():
                     outputs = lm.model.model.decoder(batch)
-                elif "llama" in args.model or "Llama" in args.model:
+                elif "llama" in args.net.lower():
                     outputs = lm.model.model(batch)
                 elif "falcon" in args.model:
                     outputs = lm.model.transformer(batch)
@@ -224,13 +224,16 @@ def main():
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--multigpu", action="store_true", help="at eval, map model to multiple gpus")
     parser.add_argument("--deactive_amp", action="store_true", help="deactivate AMP when 8<=bits<16")
+    parser.add_argument("--net", type=str, default=None, choices=net_choices)
+    parser.add_argument("--act-scales", type=str, default=None)
+    parser.add_argument("--act-shifts", type=str, default=None)
 
     args = parser.parse_args()
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-    
+
     # check
     if args.epochs > 0:
         assert args.lwc or args.let
@@ -250,7 +253,8 @@ def main():
     logger.info(args)
     
     # load model
-    args.net = args.model.split('/')[-1]
+    if args.net is None:
+        args.net = args.model.split('/')[-1]
     # assert args.net in net_choices
     args.model_family = args.net.split('-')[0]
     lm = LMClass(args)
@@ -303,6 +307,11 @@ def main():
         lm._device = f"cuda:{gpu_id}"
         logger.info(f"set quantization in gpu {gpu_id}")
 
+    # act scales and shifts
+    if args.act_scales is None:
+        args.act_scales = f'./act_scales/{args.net}.pt'
+    if args.act_shifts is None:
+        args.act_shifts = f'./act_shifts/{args.net}.pt'
 
     # quantization
     if args.wbits < 16 or args.abits <16:
@@ -325,8 +334,8 @@ def main():
         act_scales = None
         act_shifts = None
         if args.let:
-            act_scales = torch.load(f'./act_scales/{args.net}.pt')
-            act_shifts = torch.load(f'./act_shifts/{args.net}.pt')
+            act_scales = torch.load(args.act_scales)
+            act_shifts = torch.load(args.act_shifts)
         omniquant(
             lm,
             args,
