@@ -45,7 +45,7 @@ pip install -v .
 ## OmniQuant Model Zoo
 We provide pre-trained Omniquant model zoo for multiple model families, including LLaMa-1&2, LLaMa-2-Chat, OPT.
 
-You can download the pre-trained model you need at [Huggingface](https://huggingface.co/ChenMnZ/OmniQuant/tree/main).
+You can download the pre-trained OmniQuant parameters you need at [Huggingface](https://huggingface.co/ChenMnZ/OmniQuant/tree/main).
 
 The detailed support list:
 | Models  | Sizes                           | W2A16 | W2A16g128 | W2A16g64 | W3A16 |
@@ -100,6 +100,19 @@ CUDA_VISIBLE_DEVICES=0 python main.py \
 --epochs 20 --output_dir ./log/llama-7b-w4a4 \
 --eval_ppl --wbits 4 --abits 4 --lwc --let \
 --tasks piqa,arc_easy,arc_challenge,boolq,hellaswag,winogrande
+```
+
+4. reproduce evaluation results of our paper
+
+   1\) download the pretrained OmniQuant parameters you want through [Huggingface](https://huggingface.co/ChenMnZ/OmniQuant/tree/main).
+
+   2\) set epoch as 0 and inference with resume, take LLaMa-7B with W3A16g128 quantization as an example:
+```
+CUDA_VISIBLE_DEVICES=0 python main.py \
+--model /PATH/TO/LLaMA/llama-7b  \
+--epochs 0 --output_dir ./log/test \
+--eval_ppl --wbits 3 --abits 16 --group_size 128 --lwc \
+--resume /PATH/TO/Pretrained/Parameters 
 ```
 
 More detailed and optional arguments:
