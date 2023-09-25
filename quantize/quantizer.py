@@ -69,8 +69,8 @@ class UniformAffineQuantizer(nn.Module):
                     assert self.symmetric   # support for mlc-llm symmetric quantization
             else:
                 dim1 = shape[0]
-            self.upbound_factor = nn.Parameter(torch.ones((dim1,1)).cuda()*init_value)
-            self.lowbound_factor = nn.Parameter(torch.ones((dim1,1)).cuda()*init_value)
+            self.upbound_factor = nn.Parameter(torch.ones((dim1,1))*init_value)
+            self.lowbound_factor = nn.Parameter(torch.ones((dim1,1))*init_value)
         self.sigmoid = nn.Sigmoid()
 
         self.enable = True

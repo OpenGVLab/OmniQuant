@@ -158,6 +158,7 @@ def omniquant(
         logger.info(f"=== Start quantize layer {i} ===")
         layer = layers[i].to(dev)
         qlayer = DecoderLayer(lm.model.config, layer, args)
+        qlayer = qlayer.to(dev)
 
         
         # obtain output of full-precision model
