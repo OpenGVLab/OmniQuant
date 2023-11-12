@@ -142,7 +142,6 @@ class UniformAffineQuantizer(nn.Module):
             range = xmax - xmin
             scale = range / (2**self.n_bits-1)
             self.scale = scale.clamp(min=CLIPMIN, max=1e4)
-            self.scale = scale
             zero_point = -(xmin) / (self.scale)
         self.round_zero_point = zero_point.clamp(min=-1e4, max=1e4).round()
         
