@@ -234,7 +234,7 @@ def omniquant(
                 logger.info(f"layer {i} iter {epochs} loss:{loss_mean} norm:{norm_mean} max memory_allocated {torch.cuda.max_memory_allocated(lm._device) / 1024**2} ")
             qlayer.clear_temp_variable()
             del optimizer
-
+        qlayer.half() 
         # real smooth and quantization
         qlayer.smooth_and_quant_inplace()
         if args.epochs>0:
@@ -244,13 +244,13 @@ def omniquant(
                     for j in range(args.nsamples):
                         quant_inps[j] = qlayer(quant_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
             qlayer.register_scales_and_zeros()
-            qlayer.half()
+            #qlayer.half()
             layers[i] = qlayer.to("cpu")
             omni_parameters[i] = qlayer.omni_state_dict()
             torch.save(omni_parameters, os.path.join(args.output_dir, f"omni_parameters.pth"))
         else:
             qlayer.register_scales_and_zeros()
-            qlayer.half()
+            #qlayer.half()
             layers[i] = qlayer.to("cpu")
         if args.real_quant:
             named_linears = get_named_linears(qlayer)
