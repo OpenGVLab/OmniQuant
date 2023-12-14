@@ -224,9 +224,9 @@ def omniquant(
                         logger.info("Loss is NAN, stopping training")
                         pdb.set_trace()
                         
-                    loss_list.append(loss.data)
+                    loss_list.append(loss.detach().cpu())
                     optimizer.zero_grad()
-                    norm = loss_scaler(loss, optimizer,parameters=qlayer.omni_parameters(use_shift))
+                    norm = loss_scaler(loss, optimizer,parameters=qlayer.omni_parameters(use_shift)).cpu()
                     norm_list.append(norm.data)
 
                 loss_mean = torch.stack(loss_list).mean()
