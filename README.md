@@ -8,11 +8,13 @@
 
 OmniQuant is a simple and powerful quantization technique for LLMs. The current release supports:
 - OmniQuant algorithm for accurate weight-only quantization (`W4A16`/`W3A16`/`W2A16`) and weight-activation quantization (`W6A6`, `W4A4`)
-- Pre-trained Omniquant model zoo for LLMs (`LLaMA-1&2`, `LLaMA-2-Chat`, `OPT`, `Falcon`; load to generate quantized weights).
+- Pre-trained Omniquant model zoo for LLMs (`LLaMA-1&2`, `LLaMA-2-Chat`, `OPT`, `Falcon`, `Mixtral-7Bx8`; load to generate quantized weights).
 - A out-of-the-box case that leverages MLC-LLM to run LLaMa-2-Chat (7B/13B) with W3A16g128 quantization on GPUs and mobile phones.
 
 
 ## News
+- [2023/12] 🔥 We provide support for Mixtral-8x7B. OmniQuant is capable of achieving near-lossless 4-bit quantization with Mixtral-8x7B-v0.1, which reduces the memory requirement from 87GB to 23GB. Notably, the work-in-progress **OmniQuant v2** is anticipated to outperform OmniQuant v1. We invite you to stay tuned for the upcoming, more powerful OmniQuant v2. You can access the model URL and the inference code for the quantized models at [runing_quantized_mixtral_7bx8](./runing_quantized_mixtral_7bx8.ipynb).
+![mistral-8bx7-v0.1](imgs/mixtral_7bx8_v0.1.png)
 - [2023/09] 🔥 We have expanded support for Falcon. OmniQuant efficiently compresses Falcon-180b from 335G to 65G, with minimal performance loss. Furthermore, this compression allows for Falcon-180b inference on a single A100 80GB GPU. For details, refer to [runing_falcon180b_on_single_a100_80g](./runing_falcon180b_on_single_a100_80g.ipynb).
 ![falcon-180b](imgs/falcon_180b.png)
 
@@ -35,9 +37,9 @@ pip install --upgrade pip
 pip install -e .
 ```
 
-We also leverage the kernel from [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) to achieve real quantization. So you should also install the bug-fixed AutoGPTQ as follows:
+We also leverage the kernel from [AutoGPTQ](https://github.com/PanQiWei/AutoGPTQ) to achieve real quantization. So you should also install the AutoGPTQ as follows or refer (AutoGPTQ)[https://github.com/PanQiWei/AutoGPTQ] for more details:
 ```
-git clone https://github.com/ChenMnZ/AutoGPTQ-bugfix
+git clone https://github.com/PanQiWei/AutoGPTQ.git && cd AutoGPTQ
 pip install -v .
 ```
 

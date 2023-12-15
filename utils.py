@@ -7,7 +7,7 @@ import sys
 import os
 import time
 
-
+@torch.no_grad()
 def ampscaler_get_grad_norm(parameters, norm_type: float = 2.0) -> torch.Tensor:
     if isinstance(parameters, torch.Tensor):
         parameters = [parameters]

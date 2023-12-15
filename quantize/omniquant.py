@@ -5,6 +5,7 @@ from models.int_opt_layer import QuantOPTDecoderLayer
 from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
 import auto_gptq.nn_modules.qlinear.qlinear_cuda as qlinear_cuda
+import auto_gptq.nn_modules.qlinear.qlinear_triton as qlinear_triton
 from contextlib import nullcontext
 import copy
 import math
@@ -12,12 +13,28 @@ import utils
 import os
 import pdb
 import gc
+from quantize.utils import let_parameters, lwc_parameters, get_omni_parameters,\
+                            omni_state_dict, register_scales_and_zeros,smooth_and_quant_temporary,\
+                            smooth_and_quant_inplace,clear_temp_variable,set_quant_state
 
 
 
 def get_named_linears(module):
     return {name: m for name, m in module.named_modules() if isinstance(m, QuantLinear)}
 
+
+def add_new_module(name, original_module, added_module):
+    levels = name.split('.')
+    if len(levels) > 1:
+        mod_ = original_module
+        for l_idx in range(len(levels)-1):
+            if levels[l_idx].isdigit():
+                mod_ = mod_[int(levels[l_idx])]
+            else:
+                mod_ = getattr(mod_, levels[l_idx])
+        setattr(mod_, levels[-1], added_module)
+    else:
+        setattr(original_module, name, added_module)     
 
 def omniquant(
     lm,
@@ -69,8 +86,14 @@ def omniquant(
         model.lm_head.to(dev)
         DecoderLayer = QuantFalconDecoderLayer
         layer_name_prefix = "model.transformer.h"
+    elif 'mixtral' in args.net.lower():
+        is_llama = True   # same to llama except ffn
+        layers = model.model.layers
+        model.model.embed_tokens = model.model.embed_tokens.to(dev)
+        model.model.norm = model.model.norm.to(dev)
+        layer_name_prefix = "model.layers"
     else:
-        raise ValueError("Only support for opt/llama/Llama-2/falcon now")
+        raise ValueError("Only support for opt/llama/Llama-2/falcon/mixtral now")
     
     
     layers[0] = layers[0].to(dev)
@@ -115,7 +138,7 @@ def omniquant(
     # move embedding layer and first layer to cpu
     layers[0] = layers[0].module
     layers[0] = layers[0].cpu()
-    if "llama" in args.net.lower():
+    if "llama" in args.net.lower() or "mixtral" in args.net.lower():
         model.model.embed_tokens = model.model.embed_tokens.cpu()
         model.model.norm = model.model.norm.cpu()
     elif "opt" in args.net.lower():
@@ -128,7 +151,7 @@ def omniquant(
     elif 'falcon' in args.model:
         model.transformer.word_embeddings =  model.transformer.word_embeddings.cpu()
     else:
-        raise ValueError("Only support for opt/llama/Llama-2/falcon now")
+        raise ValueError("Only support for opt/llama/Llama-2/falcon/mixtral now")
     torch.cuda.empty_cache()
 
     
@@ -157,12 +180,20 @@ def omniquant(
     for i in range(len(layers)):
         logger.info(f"=== Start quantize layer {i} ===")
         layer = layers[i].to(dev)
-        qlayer = DecoderLayer(lm.model.config, layer, args)
+        if "mixtral" in args.net.lower():  
+            # for mixtral, we only leverage lwc, which can be achieve by simply replace Linear with QuantLinear
+            qlayer = copy.deepcopy(layer)
+            for name, module in qlayer.named_modules():
+                if isinstance(module,torch.nn.Linear) and not "gate" in name:       # do not quantize gate
+                    quantlinear = QuantLinear(module, args.weight_quant_params, args.act_quant_params)
+                    add_new_module(name, qlayer, quantlinear)    
+        else:
+            qlayer = DecoderLayer(lm.model.config, layer, args)
         qlayer = qlayer.to(dev)
 
         
         # obtain output of full-precision model
-        qlayer.set_quant_state(weight_quant=False, act_quant=False)
+        set_quant_state(qlayer, weight_quant=False, act_quant=False)
         if args.epochs > 0:
             with torch.no_grad():
                 with torch.cuda.amp.autocast():
@@ -170,15 +201,12 @@ def omniquant(
                         fp_inps[j] = qlayer(fp_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
                         if args.aug_loss:
                             fp_inps_2[j] = qlayer(quant_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
-
         # init smooth parameters
-        qlayer.set_quant_state(weight_quant=False, act_quant=True)  # weight will be manually quantized before forward
+        set_quant_state(qlayer, weight_quant=False, act_quant=True)  # weight will be manually quantized before forward
         qlayer.let = args.let
         use_shift = True 
-        # if is_llama and args.abits == 16:
-        #     use_shift = False                   # deactivate channel-wise shifting for llama weight-
-        # use_shift = True if args.abits < 16 else False   # only activate per-channel shifting when weight-activation quantization
-        
+        if is_llama or args.abits == 16:
+            use_shift = False                   # deactivate channel-wise shifting for llama model and weight-only quantization
         if args.let:
             # init channel-wise scaling and shift
             qlayer.register_parameter("qkt_smooth_scale",torch.nn.Parameter(torch.ones(layer.self_attn.q_proj.out_features,device=dev, dtype=dtype)))
@@ -205,7 +233,7 @@ def omniquant(
                 qlayer.float()      # required for AMP training
             # create optimizer
             optimizer = torch.optim.AdamW(
-                [{"params":qlayer.let_parameters(use_shift),"lr":args.let_lr}, {"params":qlayer.lwc_parameters(),"lr":args.lwc_lr}],weight_decay=args.wd)
+                [{"params":let_parameters(qlayer, use_shift),"lr":args.let_lr}, {"params":lwc_parameters(qlayer),"lr":args.lwc_lr}],weight_decay=args.wd)
             loss_scaler = utils.NativeScalerWithGradNormCount()
             
             for epochs in range(args.epochs):
@@ -215,7 +243,7 @@ def omniquant(
                     index = j * args.batch_size
                     # obtain output of quantization model
                     with traincast():
-                        qlayer.smooth_and_quant_temporary()
+                        smooth_and_quant_temporary(qlayer, args)
                         quant_out = qlayer(quant_inps[index:index+args.batch_size,], attention_mask=attention_mask_batch,position_ids=position_ids)[0]
                         loss = loss_func(fp_inps[index:index+args.batch_size,], quant_out)
                         if args.aug_loss:
@@ -224,35 +252,34 @@ def omniquant(
                         logger.info("Loss is NAN, stopping training")
                         pdb.set_trace()
                         
-                    loss_list.append(loss.data)
+                    loss_list.append(loss.detach().cpu())
                     optimizer.zero_grad()
-                    norm = loss_scaler(loss, optimizer,parameters=qlayer.omni_parameters(use_shift))
+                    norm = loss_scaler(loss, optimizer,parameters= get_omni_parameters(qlayer, use_shift)).cpu()
                     norm_list.append(norm.data)
 
                 loss_mean = torch.stack(loss_list).mean()
                 norm_mean = torch.stack(norm_list).mean()
                 logger.info(f"layer {i} iter {epochs} loss:{loss_mean} norm:{norm_mean} max memory_allocated {torch.cuda.max_memory_allocated(lm._device) / 1024**2} ")
-            qlayer.clear_temp_variable()
+            clear_temp_variable(qlayer)
             del optimizer
         qlayer.half() 
         # real smooth and quantization
-        qlayer.smooth_and_quant_inplace()
+        smooth_and_quant_inplace(qlayer, args)
         if args.epochs>0:
             # update input of quantization model
             with torch.no_grad():
                 with torch.cuda.amp.autocast():
                     for j in range(args.nsamples):
                         quant_inps[j] = qlayer(quant_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
-            qlayer.register_scales_and_zeros()
-            #qlayer.half()
+            register_scales_and_zeros(qlayer)
             layers[i] = qlayer.to("cpu")
-            omni_parameters[i] = qlayer.omni_state_dict()
+            omni_parameters[i] = omni_state_dict(qlayer)
             torch.save(omni_parameters, os.path.join(args.output_dir, f"omni_parameters.pth"))
         else:
-            qlayer.register_scales_and_zeros()
-            #qlayer.half()
+            register_scales_and_zeros(qlayer)
             layers[i] = qlayer.to("cpu")
         if args.real_quant:
+            assert args.wbits in [2,3,4] and args.abits >= 16   # only support weight-only quantization
             named_linears = get_named_linears(qlayer)
             for name, module in named_linears.items():
                 scales = module.weight_quantizer.scales
@@ -261,20 +288,13 @@ def omniquant(
                 dim0 = module.weight.shape[0]
                 scales = scales.view(dim0,-1)
                 zeros = zeros.view(dim0,-1)
-                q_linear = qlinear_cuda.QuantLinear(args.wbits, group_size, module.in_features,module.out_features,not module.bias is None)
-                q_linear.pack(module.float().cpu(),  scales.float().cpu(), zeros.float().cpu())
-                
-                levels = name.split('.')
-                if len(levels) > 1:
-                    mod_ = qlayer
-                    for l_idx in range(len(levels)-1):
-                        if levels[l_idx].isdigit():
-                            mod_ = mod_[int(levels[l_idx])]
-                        else:
-                            mod_ = getattr(mod_, levels[l_idx])
-                    setattr(mod_, levels[-1], q_linear)
+                if args.wbits == 3:
+                    q_linear = qlinear_cuda.QuantLinear(args.wbits, group_size, module.in_features,module.out_features,not module.bias is None)
                 else:
-                    setattr(qlayer, name, q_linear)        
+                    q_linear = qlinear_triton.QuantLinear(args.wbits, group_size, module.in_features,module.out_features,not module.bias is None)
+                q_linear.pack(module.cpu(),  scales.float().cpu(), zeros.float().cpu())
+                add_new_module(name, qlayer, q_linear)       
+                print(f"pack quantized {name} finished")
                 del module        
         del layer
         torch.cuda.empty_cache()
