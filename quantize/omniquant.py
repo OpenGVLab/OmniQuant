@@ -215,7 +215,7 @@ def omniquant(
                     for key in pairs.keys():
                         if key in name:
                             act = act_scales[f"{layer_name_prefix}.{i}.{name}"].to(device=dev, dtype=dtype).clamp(min=1e-5)
-                            weight = module.weight.max(dim=0)[0].clamp(min=1e-5)
+                            weight = module.weight.abs().max(dim=0)[0].clamp(min=1e-5)
                             scale = (act.pow(args.alpha)/weight.pow(1-args.alpha)).clamp(min=1e-5)
                             if use_shift and not is_llama:
                                 shift = act_shifts[f"{layer_name_prefix}.{i}.{name}"].to(device=dev, dtype=dtype)
