@@ -161,7 +161,16 @@ def omniquant(
     fp_inps_2 = copy.deepcopy(inps) if args.aug_loss else None # take output of quantization model as input
     
     attention_mask = cache["attention_mask"]
-    attention_mask_batch = attention_mask.repeat(args.batch_size,1,1,1) if args.deactive_amp else attention_mask.repeat(args.batch_size,1,1,1).float()
+
+    if attention_mask is not None:
+        attention_mask_batch = attention_mask.repeat(args.batch_size,1,1,1) if args.deactive_amp else attention_mask.repeat(args.batch_size,1,1,1).float()
+    else:
+        logger.info(
+            "No attention mask caught from the first layer."
+            " Seems that model's attention works without a mask."
+        )
+        attention_mask_batch = None
+
     loss_func = torch.nn.MSELoss()
     if is_llama:
         position_ids = cache["position_ids"]
