@@ -21,6 +21,8 @@ class LMClass(BaseLM):
 
         self.model_config = args.model
         config = AutoConfig.from_pretrained(args.model)
+        if getattr(config, '_attn_implementation_internal', None) is None:
+            config._attn_implementation_internal = 'eager'
         self.tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False,legacy=False)
         # self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=config.torch_dtype)
         self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=torch.float16)
