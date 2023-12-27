@@ -65,13 +65,13 @@ def smooth_and_quant_temporary(model, args):
             for name, module in model.named_parameters():
                 if "smooth_scale" in name:
                     module.data = truncate_number(module)
-        smooth_ln_fcs_temporary(model.input_layernorm,[model.model_attn.q_proj, model.model_attn.k_proj, model.model_attn.v_proj],
+        smooth_ln_fcs_temporary(model.input_layernorm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
                                 model.qkv_smooth_scale,model.qkv_smooth_shift)
         smooth_ln_fcs_temporary(model.post_attention_layernorm,[model.mlp.up_proj,model.mlp.gate_proj],
                                 model.fc1_smooth_scale,model.fc1_smooth_shift)
-        smooth_fc_fc_temporary(model.model_attn.v_proj,model.model_attn.o_proj,
+        smooth_fc_fc_temporary(model.self_attn.v_proj,model.self_attn.o_proj,
                             model.out_smooth_scale, model.out_smooth_shift)
-        smooth_q_k_temporary(model.model_attn.q_proj, model.model_attn.k_proj,
+        smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj,
                             model.qkt_smooth_scale)
         model.mlp.down_proj.temp_weight = model.mlp.down_proj.weight
     else:
@@ -103,13 +103,13 @@ def smooth_and_quant_inplace(model, args):
         for name, module in model.named_parameters():
             if "smooth_scale" in name:
                 module.data = truncate_number(module)
-        smooth_ln_fcs_inplace(model.input_layernorm,[model.model_attn.q_proj, model.model_attn.k_proj, model.model_attn.v_proj],
+        smooth_ln_fcs_inplace(model.input_layernorm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
                                 model.qkv_smooth_scale,model.qkv_smooth_shift)
         smooth_ln_fcs_inplace(model.post_attention_layernorm,[model.mlp.up_proj,model.mlp.gate_proj],
                                 model.fc1_smooth_scale,model.fc1_smooth_shift)
-        smooth_fc_fc_inplace(model.model_attn.v_proj,model.model_attn.o_proj,
+        smooth_fc_fc_inplace(model.self_attn.v_proj,model.self_attn.o_proj,
                             model.out_smooth_scale, model.out_smooth_shift)
-        smooth_q_k_inplace(model.model_attn.q_proj, model.model_attn.k_proj,
+        smooth_q_k_inplace(model.self_attn.q_proj, model.self_attn.k_proj,
                             model.qkt_smooth_scale)
     for name, module in model.named_modules():
         if isinstance(module, QuantLinear):
