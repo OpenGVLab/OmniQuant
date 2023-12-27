@@ -20,16 +20,9 @@ class LMClass(BaseLM):
         self.batch_size_per_gpu = args.batch_size
 
         self.model_config = args.model
-        config = AutoConfig.from_pretrained(args.model)
-
-        if getattr(config, '_attn_implementation_internal', None) is None:
-            print(
-                "Model's config file does not contain info about attention implementation (no `attn_implementation` attribute)."
-                " We are going to assume that the model uses \"eager\" attention."
-                " If this is not true, please specify the correct attention in the model's config file."
-            )
-
-            config._attn_implementation_internal = 'eager'
+        config = AutoConfig.from_pretrained(
+            args.model, attn_implementation=args.attn_implementation
+        )
 
         self.tokenizer = AutoTokenizer.from_pretrained(args.model, use_fast=False,legacy=False)
         # self.model = AutoModelForCausalLM.from_pretrained(args.model, config=config, device_map='cpu',torch_dtype=config.torch_dtype)

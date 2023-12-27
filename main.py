@@ -222,6 +222,12 @@ def main():
     parser.add_argument("--limit", type=int, default=-1)
     parser.add_argument("--multigpu", action="store_true", help="at eval, map model to multiple gpus")
     parser.add_argument("--deactive_amp", action="store_true", help="deactivate AMP when 8<=bits<16")
+    parser.add_argument(
+        "--attn_implementation",
+        type=str, required=False, default="eager",
+        choices=["eager", "sdpa", "flash_attention_2"],
+        help="attention implementation that the model works with",
+    )
     parser.add_argument("--net", type=str, default=None, choices=net_choices)
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
