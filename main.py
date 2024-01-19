@@ -217,6 +217,7 @@ def main():
     parser.add_argument("--lwc",default=False, action="store_true",help="activate learnable weight clipping")
     parser.add_argument("--aug_loss", default=False, action="store_true", help="calculate additional loss with same input")
     parser.add_argument("--symmetric",default=False, action="store_true", help="symmetric quantization")
+    parser.add_argument("--disable_zero_point",default=False, action="store_true", help="quantization without zero_point")
     parser.add_argument("--a_dynamic_method", type=str, default="per_token", choices=["per_token"])
     parser.add_argument("--w_dynamic_method", type=str, default="per_channel", choices=["per_channel"])
     parser.add_argument("--limit", type=int, default=-1)
@@ -275,7 +276,8 @@ def main():
         "symmetric": args.symmetric,
         "dynamic_method": args.w_dynamic_method,
         "group_size": args.group_size,
-        "lwc":args.lwc
+        "lwc":args.lwc,
+        "disable_zero_point": args.disable_zero_point
     }
     args.act_quant_params = {
         "n_bits":  args.abits,

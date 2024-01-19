@@ -31,7 +31,8 @@ class UniformAffineQuantizer(nn.Module):
         dynamic_method="per_cluster",
         group_size=None,
         shape=None,
-        lwc=False
+        lwc=False,
+        disable_zero_point=False,
     ):
         """
         support cluster quantize
@@ -39,10 +40,15 @@ class UniformAffineQuantizer(nn.Module):
         """
         super().__init__()
         self.symmetric = symmetric
+        self.disable_zero_point = disable_zero_point
         assert 2 <= n_bits <= 16, "bitwidth not supported"
         self.n_bits = n_bits
-        self.qmin = 0
-        self.qmax = 2 ** (n_bits) - 1
+        if self.disable_zero_point:
+            self.qmin = -(2 ** (n_bits - 1))
+            self.qmax = 2 ** (n_bits - 1) - 1
+        else:
+            self.qmin = 0
+            self.qmax = 2 ** (n_bits) - 1
         self.per_channel_axes = per_channel_axes
         self.metric = metric
         self.cluster_counts = None
@@ -78,8 +84,12 @@ class UniformAffineQuantizer(nn.Module):
 
     def change_n_bits(self, n_bits):
         self.n_bits = n_bits
-        self.qmin = 0
-        self.qmax = 2 ** (n_bits) - 1
+        if self.disable_zero_point:
+            self.qmin = -(2 ** (n_bits - 1))
+            self.qmax = 2 ** (n_bits - 1) - 1
+        else:
+            self.qmin = 0
+            self.qmax = 2 ** (n_bits) - 1
 
     def fake_quant(self, x, scale, round_zero_point):
         if self.deficiency > 0:
@@ -143,7 +153,10 @@ class UniformAffineQuantizer(nn.Module):
             scale = range / (2**self.n_bits-1)
             self.scale = scale.clamp(min=CLIPMIN, max=1e4)
             zero_point = -(xmin) / (self.scale)
-        self.round_zero_point = zero_point.clamp(min=-1e4, max=1e4).round()
+        if self.disable_zero_point:
+            self.round_zero_point = None
+        else:
+            self.round_zero_point = zero_point.clamp(min=-1e4, max=1e4).round()
         
     def register_scales_and_zeros(self):
         self.register_buffer('scales', self.scale)
