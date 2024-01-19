@@ -13,6 +13,7 @@ OmniQuant is a simple and powerful quantization technique for LLMs. The current 
 
 
 ## News
+- [2024/1] 🌟 Our OmniQuant paper has been accepted for a Spotlight presentation at ICLR 2024 (only top 5% out of over 7200 submissions)! 🎉 Cheers!
 - [2023/12] 🔥 We provide support for Mixtral-8x7B. OmniQuant is capable of achieving near-lossless 4-bit quantization with Mixtral-8x7B-v0.1, which reduces the memory requirement from 87GB to 23GB. Notably, the work-in-progress **OmniQuant v2** is anticipated to outperform OmniQuant v1. We invite you to stay tuned for the upcoming, more powerful OmniQuant v2. You can access the model URL and the inference code for the quantized models at [runing_quantized_mixtral_7bx8](./runing_quantized_mixtral_7bx8.ipynb).
 ![mistral-8bx7-v0.1](imgs/mixtral_7bx8_v0.1.png)
 - [2023/09] 🔥 We have expanded support for Falcon. OmniQuant efficiently compresses Falcon-180b from 335G to 65G, with minimal performance loss. Furthermore, this compression allows for Falcon-180b inference on a single A100 80GB GPU. For details, refer to [runing_falcon180b_on_single_a100_80g](./runing_falcon180b_on_single_a100_80g.ipynb).
