@@ -180,13 +180,7 @@ def gptq(lm, args, dataloader, logger):
                 gptq[name].free()
                 torch.cuda.empty_cache()
 
-        # 5.2 get output of current layer, treat it as input for next layer
-        for j in range(args.nsamples):
-            outs[j] = layer(inps[j].unsqueeze(0),
-                            attention_mask=attention_mask,
-                            position_ids=position_ids)[0]
-
-        # 5.3 quantize weight optimized by gptq
+        # 5.2 quantize weight optimized by gptq
         # NOTE(xcsong): After GPTQ quantization, we do
         #   online fake_quantize for activation (via set_quant_state)
         #       and
@@ -197,8 +191,14 @@ def gptq(lm, args, dataloader, logger):
         args.let, args.gptq = False, False
         smooth_and_quant_inplace(layer, args)
         args.let, args.gptq = prev_let, prev_gptq
-        layers[i] = layer.cpu()
+
+        # 5.3 get output of current layer, treat it as input for next layer
+        for j in range(args.nsamples):
+            outs[j] = layer(inps[j].unsqueeze(0),
+                            attention_mask=attention_mask,
+                            position_ids=position_ids)[0]
         inps, outs = outs, inps
+        layers[i] = layer.cpu()
         torch.cuda.empty_cache()
 
     model.config.use_cache = use_cache
