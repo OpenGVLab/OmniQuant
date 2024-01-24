@@ -111,10 +111,13 @@ def smooth_and_quant_inplace(model, args):
                             model.out_smooth_scale, model.out_smooth_shift)
         smooth_q_k_inplace(model.self_attn.q_proj, model.self_attn.k_proj,
                             model.qkt_smooth_scale)
-    for name, module in model.named_modules():
-        if isinstance(module, QuantLinear):
-            module.weight = module.weight_quantizer(module.weight)
-            module.use_temporary_parameter=False
+    if not args.gptq:
+        # NOTE(xcsong): Instead of fake_quantized weights,
+        #   We need original weights to calculate errors for GPTQ
+        for _, module in model.named_modules():
+            if isinstance(module, QuantLinear):
+                module.weight = module.weight_quantizer(module.weight)
+                module.use_temporary_parameter = False
 
 def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
     # setting weight quantization here does not affect actual forward pass
