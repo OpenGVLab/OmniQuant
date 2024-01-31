@@ -4,8 +4,6 @@ from models.int_llama_layer import QuantLlamaDecoderLayer
 from models.int_opt_layer import QuantOPTDecoderLayer
 from models.int_falcon_layer import QuantFalconDecoderLayer
 from quantize.int_linear import QuantLinear
-import auto_gptq.nn_modules.qlinear.qlinear_cuda as qlinear_cuda
-import auto_gptq.nn_modules.qlinear.qlinear_triton as qlinear_triton
 from contextlib import nullcontext
 import copy
 import math
@@ -16,6 +14,11 @@ import gc
 from quantize.utils import let_parameters, lwc_parameters, get_omni_parameters,\
                             omni_state_dict, register_scales_and_zeros,smooth_and_quant_temporary,\
                             smooth_and_quant_inplace,clear_temp_variable,set_quant_state
+try:
+    import auto_gptq.nn_modules.qlinear.qlinear_cuda as qlinear_cuda
+    import auto_gptq.nn_modules.qlinear.qlinear_triton as qlinear_triton
+except:
+    print("auto_gptq is required for real quantization")
 
 
 
@@ -277,7 +280,8 @@ def omniquant(
         if args.epochs>0:
             # update input of quantization model
             with torch.no_grad():
-                with torch.cuda.amp.autocast():
+                # with torch.cuda.amp.autocast():
+                with traincast():
                     for j in range(args.nsamples):
                         quant_inps[j] = qlayer(quant_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
             register_scales_and_zeros(qlayer)
