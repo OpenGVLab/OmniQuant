@@ -59,21 +59,32 @@ def truncate_number(number, threshold=1e-2):
     # avoid overflow with AMP training
     return TruncateFunction.apply(number, threshold)     
 
-def smooth_and_quant_temporary(model, args):
+def smooth_and_quant_temporary(model, args, isllama):
     if args.let:
         with torch.no_grad():
             for name, module in model.named_parameters():
                 if "smooth_scale" in name:
                     module.data = truncate_number(module)
-        smooth_ln_fcs_temporary(model.input_layernorm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
-                                model.qkv_smooth_scale,model.qkv_smooth_shift)
-        smooth_ln_fcs_temporary(model.post_attention_layernorm,[model.mlp.up_proj,model.mlp.gate_proj],
-                                model.fc1_smooth_scale,model.fc1_smooth_shift)
-        smooth_fc_fc_temporary(model.self_attn.v_proj,model.self_attn.o_proj,
-                            model.out_smooth_scale, model.out_smooth_shift)
-        smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj,
-                            model.qkt_smooth_scale)
-        model.mlp.down_proj.temp_weight = model.mlp.down_proj.weight
+        if isllama:
+            smooth_ln_fcs_temporary(model.input_layernorm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
+                                    model.qkv_smooth_scale,model.qkv_smooth_shift)
+            smooth_ln_fcs_temporary(model.post_attention_layernorm,[model.mlp.up_proj,model.mlp.gate_proj],
+                                    model.fc1_smooth_scale,model.fc1_smooth_shift)
+            smooth_fc_fc_temporary(model.self_attn.v_proj,model.self_attn.o_proj,
+                                model.out_smooth_scale, model.out_smooth_shift)
+            smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj,
+                                model.qkt_smooth_scale)
+            model.mlp.down_proj.temp_weight = model.mlp.down_proj.weight
+        else:
+            smooth_ln_fcs_temporary(model.self_attn_layer_norm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
+                                    model.qkv_smooth_scale,model.qkv_smooth_shift)
+            smooth_ln_fcs_temporary(model.final_layer_norm,[model.fc1],
+                                    model.fc1_smooth_scale,model.fc1_smooth_shift)
+            smooth_ln_fcs_temporary(model.self_attn.v_proj,model.self_attn.out_proj,
+                                model.out_smooth_scale, model.out_smooth_shift)
+            smooth_q_k_temporary(model.self_attn.q_proj, model.self_attn.k_proj,
+                                model.qkt_smooth_scale)
+            model.fc2.temp_weight = model.fc2.weight
     else:
         for name, module in model.named_modules():
             if isinstance(module, QuantLinear):
@@ -98,17 +109,25 @@ def clear_temp_variable(model):
                 del module.temp_bias
 
 @torch.no_grad()   
-def smooth_and_quant_inplace(model, args):
+def smooth_and_quant_inplace(model, args, isllama):
     if args.let:
         for name, module in model.named_parameters():
             if "smooth_scale" in name:
                 module.data = truncate_number(module)
-        smooth_ln_fcs_inplace(model.input_layernorm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
-                                model.qkv_smooth_scale,model.qkv_smooth_shift)
-        smooth_ln_fcs_inplace(model.post_attention_layernorm,[model.mlp.up_proj,model.mlp.gate_proj],
-                                model.fc1_smooth_scale,model.fc1_smooth_shift)
-        smooth_fc_fc_inplace(model.self_attn.v_proj,model.self_attn.o_proj,
-                            model.out_smooth_scale, model.out_smooth_shift)
+        if isllama:
+            smooth_ln_fcs_inplace(model.input_layernorm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
+                                    model.qkv_smooth_scale,model.qkv_smooth_shift)
+            smooth_ln_fcs_inplace(model.post_attention_layernorm,[model.mlp.up_proj,model.mlp.gate_proj],
+                                    model.fc1_smooth_scale,model.fc1_smooth_shift)
+            smooth_fc_fc_inplace(model.self_attn.v_proj,model.self_attn.o_proj,
+                                model.out_smooth_scale, model.out_smooth_shift)
+        else: # opt
+            smooth_ln_fcs_inplace(model.self_attn_layer_norm,[model.self_attn.q_proj, model.self_attn.k_proj, model.self_attn.v_proj],
+                                    model.qkv_smooth_scale,model.qkv_smooth_shift)
+            smooth_ln_fcs_inplace(model.final_layer_norm,[model.fc1],
+                                    model.fc1_smooth_scale,model.fc1_smooth_shift)
+            smooth_fc_fc_inplace(model.self_attn.v_proj,model.self_attn.out_proj,
+                                model.out_smooth_scale, model.out_smooth_shift)
         smooth_q_k_inplace(model.self_attn.q_proj, model.self_attn.k_proj,
                             model.qkt_smooth_scale)
     for name, module in model.named_modules():

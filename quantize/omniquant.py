@@ -255,7 +255,7 @@ def omniquant(
                     index = j * args.batch_size
                     # obtain output of quantization model
                     with traincast():
-                        smooth_and_quant_temporary(qlayer, args)
+                        smooth_and_quant_temporary(qlayer, args, is_llama)
                         quant_out = qlayer(quant_inps[index:index+args.batch_size,], attention_mask=attention_mask_batch,position_ids=position_ids)[0]
                         loss = loss_func(fp_inps[index:index+args.batch_size,], quant_out)
                         if args.aug_loss:
@@ -276,7 +276,7 @@ def omniquant(
             del optimizer
         qlayer.half() 
         # real smooth and quantization
-        smooth_and_quant_inplace(qlayer, args)
+        smooth_and_quant_inplace(qlayer, args, is_llama)
         if args.epochs>0:
             # update input of quantization model
             with torch.no_grad():
