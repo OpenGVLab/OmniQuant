@@ -194,7 +194,7 @@ def main():
     parser.add_argument("--output_dir", default="../log/", type=str, help="direction of logging file")
     parser.add_argument("--save_dir", default=None, type=str, help="direction for saving fake quantization model")
     parser.add_argument("--resume", type=str, default=None)
-    parser.add_argument("--real_quant", default=False, action="store_true",)
+    parser.add_argument("--real_quant", default=False, action="store_true", help="real quantization, which can see memory reduce. Note that due to the limitations of AutoGPTQ kernels, the real quantization of weight-only quantization can only lead memory reduction, but with slower inference speed.")
     parser.add_argument("--calib_dataset",type=str,default="wikitext2",
         choices=["wikitext2", "ptb", "c4", "mix","pile"],
         help="Where to extract calibration data from.",
