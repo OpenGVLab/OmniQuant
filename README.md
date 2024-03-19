@@ -1,7 +1,16 @@
 # OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models
 
-[![arXiv](https://img.shields.io/badge/OmniQuant-2308.13137-b31b1b.svg)](https://arxiv.org/abs/2308.13137)
+<h5 align="center">
+
+[![arXiv](https://img.shields.io/badge/OmniQuant-2308.13137-b31b1b.svg?logo=arXiv)](https://arxiv.org/abs/2308.13137)
+[![jiqizhixin](https://img.shields.io/badge/机器之心%20-black)](https://mp.weixin.qq.com/s/za2ptWT1_li99-YmjcXQAg)
+[![zhihu](https://img.shields.io/badge/知乎-0084FF)](https://zhuanlan.zhihu.com/p/685805699)
+[![License](https://img.shields.io/badge/Code%20License-MIT-yellow)](https://github.com/OpenGVLab/OmniQuant/blob/main/LICENCE)
 [![GitHub Stars](https://img.shields.io/github/stars/OpenGVLab/OmniQuant.svg?style=social&label=Star&maxAge=60)](https://github.com/OpenGVLab/OmniQuant)🔥🔥🔥
+ <br>
+
+</h5>
+
   
 
 ![omniquant](imgs/OmniQuant.png)
@@ -133,7 +142,7 @@ More detailed and optional arguments:
 - `--tasks`: evaluating zero-shot tasks.
 - `--resume`: loading pre-trained OmniQuant parameters.
 - `--multigpu`: to inference larger network on multiple GPUs
-- `--real_quant`: real quantization, which can see memory reduce
+- `--real_quant`: real quantization, which can see memory reduce. Note that due to the limitations of AutoGPTQ kernels, the real quantization of weight-only quantization can only lead memory reduction, but with slower inference speed.
 - `--save_dir`: saving the quantization model for further exploration.
 
 
