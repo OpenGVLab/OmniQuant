@@ -22,6 +22,7 @@ OmniQuant is a simple and powerful quantization technique for LLMs. The current 
 
 
 ## News
+- [2024/7] 🔥 We release a new quantization algorithm, [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT), which realizes quantization-aware training in a time-efficient and memory-efficient manner. Additionally, EfficientQAT is the current SoTA of uniform quantization.
 - [2024/1] 🌟 Our OmniQuant paper has been accepted for a Spotlight presentation at ICLR 2024 (only top 5% out of over 7200 submissions)! 🎉 Cheers!
 - [2023/12] 🔥 We provide support for Mixtral-8x7B. OmniQuant is capable of achieving near-lossless 4-bit quantization with Mixtral-8x7B-v0.1, which reduces the memory requirement from 87GB to 23GB. Notably, the work-in-progress **OmniQuant v2** is anticipated to outperform OmniQuant v1. We invite you to stay tuned for the upcoming, more powerful OmniQuant v2. You can access the model URL and the inference code for the quantized models at [runing_quantized_mixtral_7bx8](./runing_quantized_mixtral_7bx8.ipynb).
 ![mistral-8bx7-v0.1](imgs/mixtral_7bx8_v0.1.png)
