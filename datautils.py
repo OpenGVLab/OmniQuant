@@ -51,6 +51,7 @@ def get_wikitext2(nsamples, seed, seqlen, model):
         tar = inp.clone()
         tar[:, :-1] = -100
         trainloader.append((inp, tar))
+
     return trainloader, testenc
 
 def get_ptb(nsamples, seed, seqlen, model):
