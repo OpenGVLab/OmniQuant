@@ -119,10 +119,8 @@ def omniquant(
             self.is_llama = False
 
         def forward(self, inp, **kwargs):
-            print("kwargs", kwargs)
             inps[cache["i"]] = inp
             cache["i"] += 1
-            print("kwargs: attention_mask", kwargs["attention_mask"].size())
             cache["attention_mask"] = kwargs["attention_mask"]
             if self.is_llama:
                 cache["position_ids"] = kwargs["position_ids"]
@@ -133,7 +131,6 @@ def omniquant(
 
     with torch.no_grad():
         for batch in dataloader:
-            print("my batch", batch)
             if cache["i"] >= args.nsamples:
                 break
             try:
@@ -169,7 +166,6 @@ def omniquant(
     fp_inps_2 = copy.deepcopy(inps) if args.aug_loss else None # take output of quantization model as input
     
     attention_mask = cache["attention_mask"].to(dev)
-    print("attention_mask", attention_mask.size())
 
     if attention_mask is not None:
         attention_mask_batch = attention_mask.repeat(args.batch_size,1,1,1) if args.deactive_amp else attention_mask.repeat(args.batch_size,1,1,1).float()
@@ -180,7 +176,6 @@ def omniquant(
         )
         attention_mask_batch = None
 
-    print("attention_mask", attention_mask.size())
     loss_func = torch.nn.MSELoss()
     if is_llama:
         position_ids = cache["position_ids"].to(dev)

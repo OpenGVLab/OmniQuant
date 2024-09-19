@@ -90,6 +90,70 @@ def evaluate(lm, args, logger):
         elif "falcon" in args.net.lower():
             lm.model.transformer = lm.model.transformer.to(lm.device)
 
+    if args.generate:
+        import requests
+        import json
+        import uuid
+        import time
+
+        results = []
+
+        # Fetch and run inference on data from GitHub
+        question_jsonl_url = "https://raw.githubusercontent.com/lm-sys/arena-hard-auto/main/data/arena-hard-v0.1/question.jsonl"
+        response = requests.get(question_jsonl_url)
+        if response.status_code == 200:
+            data = [json.loads(line) for line in response.text.splitlines()]
+        else:
+            raise Exception(f"Failed to download questions. Status code: {response.status_code}")
+        
+        lm.model.eval()
+
+        for item in data:
+            question_id = item['question_id']
+            content = item['turns'][0]['content']
+
+            # Tokenize input and move input_ids to CUDA
+            inputs = lm.tokenizer(content, return_tensors='pt')
+            input_ids = inputs['input_ids'].to(lm.device)
+            attention_mask = inputs['attention_mask'].to(lm.device)
+
+            with torch.no_grad():
+                output_ids = lm.model.generate(input_ids=input_ids,
+                                attention_mask=attention_mask,
+                                temperature=1e-5,
+                                max_new_tokens=4096)
+
+            answer_id = str(uuid.uuid4())
+            model_id = "OmniQuant-8B-w4a16"
+            tstamp = time.time()
+            formatted_result = {
+                "question_id": question_id,
+                "answer_id": answer_id,
+                "model_id": model_id,
+                "choices": [
+                {
+                    "index": 0,
+                    "turns": [
+                        {
+                            "content": lm.tokenizer.decode(output_ids[0], skip_special_tokens=True),
+                            "token_len": len(lm.tokenizer.decode(output_ids[0], skip_special_tokens=True).split())
+                        }
+                    ]
+                }
+               ],
+            "tstamp": tstamp
+            }
+
+            results.append(formatted_result)
+
+        # Save results to a JSON file
+        output_file = os.path.join(args.save_dir, f"results_all.json")
+        with open(output_file, 'w') as f:
+            json.dump(results, f, indent=4)
+
+        logger.info(f"Results saved to {output_file}") 
+
+        return results 
 
     if args.eval_ppl:
         # for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
@@ -204,6 +268,7 @@ def main():
     parser.add_argument("--seed", type=int, default=2, help="Seed for sampling the calibration data.")
     parser.add_argument("--tasks", default="")
     parser.add_argument("--eval_ppl", action="store_true")
+    parser.add_argument("--generate", action="store_true")
     parser.add_argument("--num_fewshot", type=int, default=0)
     parser.add_argument("--wbits", type=int, default=4)
     parser.add_argument("--abits", type=int, default=16)
