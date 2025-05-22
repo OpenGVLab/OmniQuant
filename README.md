@@ -22,6 +22,7 @@ OmniQuant is a simple and powerful quantization technique for LLMs. The current 
 
 
 ## News
+- [2025/05] 🔥 **We explore the [Scaling Law for Quantization-Aware Training](https://export.arxiv.org/abs/2505.14302), which offers insights and instruction for LLMs QAT.**
 - [2024/10] 🔥 We release a new weight-activation quantization algorithm, [PrefixQuant](https://github.com/ChenMnZ/PrefixQuant), which is the first work to let the performance of static activation quantization surpasses dynamic ones.
 - [2024/7] 🔥 We release a new quantization algorithm, [EfficientQAT](https://github.com/OpenGVLab/EfficientQAT), which realizes quantization-aware training in a time-efficient and memory-efficient manner. Additionally, EfficientQAT is the current SoTA of uniform quantization.
 - [2024/1] 🌟 Our OmniQuant paper has been accepted for a Spotlight presentation at ICLR 2024 (only top 5% out of over 7200 submissions)! 🎉 Cheers!
