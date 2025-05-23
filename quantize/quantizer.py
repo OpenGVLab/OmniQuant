@@ -10,8 +10,6 @@ import math
 CLIPMIN = 1e-5
 
 
-
-
 def round_ste(x: torch.Tensor):
     """
     Implement Straight-Through Estimator for rounding operation.
@@ -163,3 +161,58 @@ class UniformAffineQuantizer(nn.Module):
         self.register_buffer('zeros', self.round_zero_point)
         del self.scale
         del self.round_zero_point
+
+
+class FixedScaleQuantizer(UniformAffineQuantizer):
+    def __init__(
+        self,
+        scale,
+        zero,
+        n_bits: int = 8,
+        symmetric: bool = False,
+        per_channel_axes=[],
+        metric="minmax",
+        dynamic=False,
+        dynamic_method="per_cluster",
+        group_size=None,
+        shape=None,
+        lwc=False,
+        disable_zero_point=False
+    ):
+        UniformAffineQuantizer.__init__(
+            self,
+            n_bits,
+            symmetric,
+            per_channel_axes,
+            metric,
+            dynamic,
+            dynamic_method,
+            group_size,
+            shape,
+            lwc,
+            disable_zero_point
+        )
+        # Init scale & zero
+        self.scale = scale
+        self.zero = zero
+
+    # NOTE(xcsong): Overwrite AutoGptqQuantizer.find_params() since there is
+    #   no need to re-compute scale and zero
+    def find_params(self, x, weight=False):
+        pass
+
+    # NOTE(xcsong): Overwrite AutoGptqQuantizer.ready() since there is
+    #   no need to re-compute scale and zero
+    def ready(self):
+        return True
+
+    # NOTE(xcsong): Overwrite AutoGptqQuantizer.quantize() since we have a
+    #   slightly different quantization process
+    def quantize(self, x):
+        if self.n_bits >= 16:
+            return x
+        if self.metric == "fix0to1":
+            return x.mul_(2**self.n_bits-1).round_().div_(2**self.n_bits-1)
+
+        x_dequant = self.fake_quant(x, self.scale, self.zero)
+        return x_dequant
