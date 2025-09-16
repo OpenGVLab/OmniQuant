@@ -15,6 +15,7 @@ from tqdm import tqdm
 import utils
 from pathlib import Path
 from categories import subcategories, categories
+from datetime import datetime
 
 from models.int_llama_layer import QuantLlamaDecoderLayer
 from models.int_opt_layer import QuantOPTDecoderLayer
@@ -45,7 +46,7 @@ net_choices = [
     "llava-llama-2-13b-chat-lightning-preview",
     "falcon-180b",
     "falcon-7b",
-    "mixtral-8x7b"
+    "mixtral-8x7b",
 ]
 
 
@@ -90,11 +91,12 @@ def evaluate(lm, args, logger):
         elif "falcon" in args.net.lower():
             lm.model.transformer = lm.model.transformer.to(lm.device)
 
-
     if args.eval_ppl:
         # for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
         for dataset in ["wikitext2", "c4"]:
-            cache_testloader = f'{args.cache_dir}/testloader_{args.model_family}_{dataset}_all.cache'
+            cache_testloader = (
+                f"{args.cache_dir}/testloader_{args.model_family}_{dataset}_all.cache"
+            )
             if os.path.exists(cache_testloader):
                 testloader = torch.load(cache_testloader)
                 logger.info(f"load calibration from {cache_testloader}")
@@ -117,7 +119,9 @@ def evaluate(lm, args, logger):
             lm.model.eval()
             nlls = []
             for i in tqdm(range(nsamples)):
-                batch = testenc[:, (i * lm.seqlen) : ((i + 1) * lm.seqlen)].to(lm.device)
+                batch = testenc[:, (i * lm.seqlen) : ((i + 1) * lm.seqlen)].to(
+                    lm.device
+                )
                 if "opt" in args.net.lower():
                     outputs = lm.model.model.decoder(batch)
                 elif "llama" in args.net.lower() or "mixtral" in args.net.lower():
@@ -141,7 +145,7 @@ def evaluate(lm, args, logger):
                     break
 
             ppl = torch.exp(torch.stack(nlls).sum() / (nsamples * lm.seqlen))
-            logger.info(f'{dataset} : {ppl.item()}')
+            logger.info(f"{dataset} : {ppl.item()}")
             lm.model.config.use_cache = use_cache
             results[dataset] = ppl.item()
     if args.tasks != "":
@@ -155,18 +159,22 @@ def evaluate(lm, args, logger):
         logger.info(results)
         pprint(results)
         # for test of MMLU
-        if 'hendrycksTest' in args.tasks:
+        if "hendrycksTest" in args.tasks:
             all_cors = []
             all_cors_norm = []
-            subcat_cors = {subcat: [] for subcat_lists in subcategories.values() for subcat in subcat_lists}
+            subcat_cors = {
+                subcat: []
+                for subcat_lists in subcategories.values()
+                for subcat in subcat_lists
+            }
             cat_cors = {cat: [] for cat in categories}
             cat_cors_norm = {cat: [] for cat in categories}
-            for key in t_results['results'].keys():
-                if not 'hendrycksTest' in key:
+            for key in t_results["results"].keys():
+                if not "hendrycksTest" in key:
                     continue
-                subject = key.split('-')[-1]
-                cors = t_results['results'][key]['acc']
-                cors_norm = t_results['results'][key]['acc_norm']
+                subject = key.split("-")[-1]
+                cors = t_results["results"][key]["acc"]
+                cors_norm = t_results["results"][key]["acc_norm"]
                 subcats = subcategories[subject]
                 for subcat in subcats:
                     subcat_cors[subcat].append(cors)
@@ -176,12 +184,12 @@ def evaluate(lm, args, logger):
                             cat_cors_norm[key].append(cors_norm)
                     all_cors.append(cors)
                     all_cors_norm.append(cors_norm)
-                    
+
             for cat in cat_cors:
                 cat_acc = np.mean(cat_cors[cat])
                 logger.info("Average accuracy {:.4f} - {}".format(cat_acc, cat))
             weighted_acc = np.mean(all_cors)
-            logger.info("Average accuracy: {:.4f}".format(weighted_acc))               
+            logger.info("Average accuracy: {:.4f}".format(weighted_acc))
     return results
 
 
@@ -190,18 +198,45 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, help="model name of model path")
-    parser.add_argument("--cache_dir", default="./cache", type=str, help="cache dir of dataset, leading to faster debug")
-    parser.add_argument("--output_dir", default="../log/", type=str, help="direction of logging file")
-    parser.add_argument("--save_dir", default=None, type=str, help="direction for saving fake quantization model")
+    parser.add_argument(
+        "--cache_dir",
+        default="./cache",
+        type=str,
+        help="cache dir of dataset, leading to faster debug",
+    )
+    parser.add_argument(
+        "--output_dir",
+        default=None,
+        type=str,
+        help="Output directory. If not specified, auto-create /workspace/logs/model-name_size_wbit_actbit/<timestamp>",
+    )
+    parser.add_argument(
+        "--save_dir",
+        default=None,
+        type=str,
+        help="direction for saving fake quantization model",
+    )
     parser.add_argument("--resume", type=str, default=None)
-    parser.add_argument("--real_quant", default=False, action="store_true", help="real quantization, which can see memory reduce. Note that due to the limitations of AutoGPTQ kernels, the real quantization of weight-only quantization can only lead memory reduction, but with slower inference speed.")
-    parser.add_argument("--calib_dataset",type=str,default="wikitext2",
-        choices=["wikitext2", "ptb", "c4", "mix","pile"],
+    parser.add_argument(
+        "--real_quant",
+        default=False,
+        action="store_true",
+        help="real quantization, which can see memory reduce. Note that due to the limitations of AutoGPTQ kernels, the real quantization of weight-only quantization can only lead memory reduction, but with slower inference speed.",
+    )
+    parser.add_argument(
+        "--calib_dataset",
+        type=str,
+        default="wikitext2",
+        choices=["wikitext2", "ptb", "c4", "mix", "pile"],
         help="Where to extract calibration data from.",
     )
-    parser.add_argument("--nsamples", type=int, default=128, help="Number of calibration data samples.")
+    parser.add_argument(
+        "--nsamples", type=int, default=128, help="Number of calibration data samples."
+    )
     parser.add_argument("--batch_size", type=int, default=1, help="batch size.")
-    parser.add_argument("--seed", type=int, default=2, help="Seed for sampling the calibration data.")
+    parser.add_argument(
+        "--seed", type=int, default=2, help="Seed for sampling the calibration data."
+    )
     parser.add_argument("--tasks", default="")
     parser.add_argument("--eval_ppl", action="store_true")
     parser.add_argument("--num_fewshot", type=int, default=0)
@@ -213,19 +248,51 @@ def main():
     parser.add_argument("--lwc_lr", type=float, default=1e-2)
     parser.add_argument("--wd", type=float, default=0)
     parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--let",default=False, action="store_true",help="activate learnable equivalent transformation")
-    parser.add_argument("--lwc",default=False, action="store_true",help="activate learnable weight clipping")
-    parser.add_argument("--aug_loss", default=False, action="store_true", help="calculate additional loss with same input")
-    parser.add_argument("--symmetric",default=False, action="store_true", help="symmetric quantization")
-    parser.add_argument("--disable_zero_point",default=False, action="store_true", help="quantization without zero_point")
-    parser.add_argument("--a_dynamic_method", type=str, default="per_token", choices=["per_token"])
-    parser.add_argument("--w_dynamic_method", type=str, default="per_channel", choices=["per_channel"])
+    parser.add_argument(
+        "--let",
+        default=False,
+        action="store_true",
+        help="activate learnable equivalent transformation",
+    )
+    parser.add_argument(
+        "--lwc",
+        default=False,
+        action="store_true",
+        help="activate learnable weight clipping",
+    )
+    parser.add_argument(
+        "--aug_loss",
+        default=False,
+        action="store_true",
+        help="calculate additional loss with same input",
+    )
+    parser.add_argument(
+        "--symmetric", default=False, action="store_true", help="symmetric quantization"
+    )
+    parser.add_argument(
+        "--disable_zero_point",
+        default=False,
+        action="store_true",
+        help="quantization without zero_point",
+    )
+    parser.add_argument(
+        "--a_dynamic_method", type=str, default="per_token", choices=["per_token"]
+    )
+    parser.add_argument(
+        "--w_dynamic_method", type=str, default="per_channel", choices=["per_channel"]
+    )
     parser.add_argument("--limit", type=int, default=-1)
-    parser.add_argument("--multigpu", action="store_true", help="at eval, map model to multiple gpus")
-    parser.add_argument("--deactive_amp", action="store_true", help="deactivate AMP when 8<=bits<16")
+    parser.add_argument(
+        "--multigpu", action="store_true", help="at eval, map model to multiple gpus"
+    )
+    parser.add_argument(
+        "--deactive_amp", action="store_true", help="deactivate AMP when 8<=bits<16"
+    )
     parser.add_argument(
         "--attn_implementation",
-        type=str, required=False, default="eager",
+        type=str,
+        required=False,
+        default="eager",
         choices=["eager", "sdpa", "flash_attention_2"],
         help="attention implementation that the model works with",
     )
@@ -242,33 +309,37 @@ def main():
     # check
     if args.epochs > 0:
         assert args.lwc or args.let
-        
-    if (args.wbits<16 and args.wbits>=8) or (args.abits<16 and args.abits>=8):
+
+    if (args.wbits < 16 and args.wbits >= 8) or (args.abits < 16 and args.abits >= 8):
         args.deactive_amp = True
+
+    # load model
+    if args.net is None:
+        args.net = args.model.split("/")[-1]
+    args.model_family = args.net.split("-")[0]
+
+    # auto-generate output_dir if not specified
+    if not args.output_dir:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        auto_dir = (
+            Path("/workspace/logs")
+            / f"{args.net}_{args.wbits}w_{args.abits}a"
+            / timestamp
+        )
+        args.output_dir = str(auto_dir)
 
     # init logger
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    if args.cache_dir:
-        Path(args.cache_dir).mkdir(parents=True, exist_ok=True)
-    if args.save_dir:
-        Path(args.save_dir).mkdir(parents=True, exist_ok=True)
-    output_dir = Path(args.output_dir)
-    logger = utils.create_logger(output_dir)
+    logger = utils.create_logger(Path(args.output_dir))
     logger.info(args)
-    
+
     # load model
-    if args.net is None:
-        args.net = args.model.split('/')[-1]
-    # assert args.net in net_choices
-    args.model_family = args.net.split('-')[0]
     lm = LMClass(args)
     lm.seqlen = 2048
     lm.model.eval()
     for param in lm.model.parameters():
         param.requires_grad = False
-
-    
 
     args.weight_quant_params = {
         "n_bits": args.wbits,
@@ -276,11 +347,11 @@ def main():
         "symmetric": args.symmetric,
         "dynamic_method": args.w_dynamic_method,
         "group_size": args.group_size,
-        "lwc":args.lwc,
-        "disable_zero_point": args.disable_zero_point
+        "lwc": args.lwc,
+        "disable_zero_point": args.disable_zero_point,
     }
     args.act_quant_params = {
-        "n_bits":  args.abits,
+        "n_bits": args.abits,
         "per_channel_axes": [],
         "symmetric": False,
         "dynamic_method": args.a_dynamic_method,
@@ -315,16 +386,16 @@ def main():
 
     # act scales and shifts
     if args.act_scales is None:
-        args.act_scales = f'./act_scales/{args.net}.pt'
+        args.act_scales = f"./act_scales/{args.net}.pt"
     if args.act_shifts is None:
-        args.act_shifts = f'./act_shifts/{args.net}.pt'
+        args.act_shifts = f"./act_shifts/{args.net}.pt"
 
     # quantization
-    if args.wbits < 16 or args.abits <16:
+    if args.wbits < 16 or args.abits < 16:
         logger.info("=== start quantization ===")
-        tick = time.time()     
+        tick = time.time()
         # load calibration dataset
-        cache_dataloader = f'{args.cache_dir}/dataloader_{args.model_family}_{args.calib_dataset}_{args.nsamples}.cache'
+        cache_dataloader = f"{args.cache_dir}/dataloader_{args.model_family}_{args.calib_dataset}_{args.nsamples}.cache"
         if os.path.exists(cache_dataloader):
             dataloader = torch.load(cache_dataloader)
             logger.info(f"load calibration from {cache_dataloader}")
@@ -336,7 +407,7 @@ def main():
                 model=args.model,
                 seqlen=lm.seqlen,
             )
-            torch.save(dataloader, cache_dataloader)    
+            torch.save(dataloader, cache_dataloader)
         act_scales = None
         act_shifts = None
         if args.let:
@@ -357,17 +428,19 @@ def main():
             if isinstance(module, QuantLinear):
                 del module.weight_quantizer.lowbound_factor
                 del module.weight_quantizer.upbound_factor
-            if isinstance(module,QuantLlamaDecoderLayer) or isinstance(module,QuantOPTDecoderLayer):
+            if isinstance(module, QuantLlamaDecoderLayer) or isinstance(
+                module, QuantOPTDecoderLayer
+            ):
                 if args.let:
                     del module.qkv_smooth_scale
                     del module.qkv_smooth_shift
                     del module.out_smooth_scale
                     del module.out_smooth_shift
                     del module.fc1_smooth_scale
-                    del module.fc1_smooth_shift           
-        lm.model.save_pretrained(args.save_dir)  
-        lm.tokenizer.save_pretrained(args.save_dir) 
-    evaluate(lm, args,logger)
+                    del module.fc1_smooth_shift
+        lm.model.save_pretrained(args.save_dir)
+        lm.tokenizer.save_pretrained(args.save_dir)
+    evaluate(lm, args, logger)
 
 
 if __name__ == "__main__":
