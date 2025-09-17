@@ -299,6 +299,18 @@ def main():
     parser.add_argument("--net", type=str, default=None, choices=net_choices)
     parser.add_argument("--act-scales", type=str, default=None)
     parser.add_argument("--act-shifts", type=str, default=None)
+    parser.add_argument(
+        "--let_ortho",
+        action="store_true",
+        help="Enable OrthoLET (orthogonal extension of LET via Householder reflections).",
+    )
+    parser.add_argument(
+        "--let_ortho_k",
+        type=int,
+        default=0,
+        help="Number of Householder reflections for OrthoLET (e.g., 1 or 2; 0 disables).",
+    )
+
 
     args = parser.parse_args()
     random.seed(args.seed)
@@ -308,8 +320,8 @@ def main():
 
     # check
     if args.epochs > 0:
-        assert args.lwc or args.let
-
+        # allow training if any of LWC / LET / OrthoLET is enabled
+        assert args.lwc or args.let or args.let_ortho
     if (args.wbits < 16 and args.wbits >= 8) or (args.abits < 16 and args.abits >= 8):
         args.deactive_amp = True
 

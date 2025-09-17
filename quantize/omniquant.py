@@ -20,6 +20,30 @@ try:
 except:
     print("auto_gptq is required for real quantization")
 
+# --- OrthoLET helpers (Householder-based) ---
+def _householder_stack(u_list: torch.Tensor, dim: int) -> torch.Tensor:
+    """
+    Build an orthogonal matrix A = Π_i H(u_i) from k Householder vectors.
+    u_list: (k, dim). If k==0, return identity.
+    """
+    if u_list is None or u_list.numel() == 0:
+        return torch.eye(dim, device='cuda' if torch.cuda.is_available() else u_list.device if u_list is not None else 'cpu')
+    A = torch.eye(dim, device=u_list.device, dtype=u_list.dtype)
+    for i in range(u_list.shape[0]):
+        u = u_list[i]
+        v = u / (u.norm(p=2) + 1e-12)
+        H = torch.eye(dim, device=u.device, dtype=u.dtype) - 2.0 * (v[:, None] @ v[None, :])
+        A = H @ A
+    return A
+
+def _maybe_build_A_on_qlayer(qlayer, hidden_size, dtype, dev):
+    """
+    Read qlayer.ortho_u (k, hidden) and construct A. None if disabled.
+    """
+    if not hasattr(qlayer, 'ortho_u') or qlayer.ortho_u is None:
+        return None
+    A = _householder_stack(qlayer.ortho_u, hidden_size).to(device=dev, dtype=dtype)
+    return A
 
 
 def get_named_linears(module):
@@ -203,16 +227,37 @@ def omniquant(
             qlayer = DecoderLayer(lm.model.config, layer, args)
         qlayer = qlayer.to(dev)
 
-        
+        # --- OrthoLET parameter on this layer (optional) ---
+        use_ortho = bool(getattr(args, 'let_ortho', False)) and int(getattr(args, 'let_ortho_k', 0)) > 0
+        if use_ortho:
+            k = int(getattr(args, 'let_ortho_k', 0))
+            # learnable Householder vectors on the input (hidden) space
+            qlayer.register_parameter("ortho_u", torch.nn.Parameter(torch.zeros(k, model.config.hidden_size, device=dev, dtype=dtype)))
+            torch.nn.init.normal_(qlayer.ortho_u, std=1e-3)  # keep A ≈ I at init
+        else:
+            if hasattr(qlayer, 'ortho_u'):
+                delattr(qlayer, 'ortho_u')
+        # ------------------------------------------
+
         # obtain output of full-precision model
         set_quant_state(qlayer, weight_quant=False, act_quant=False)
         if args.epochs > 0:
             with torch.no_grad():
                 with torch.cuda.amp.autocast():
+                    # build A once per forward block (match dtype/device used here)
+                    A = _maybe_build_A_on_qlayer(qlayer, model.config.hidden_size, dtype, dev) if use_ortho else None
                     for j in range(args.nsamples):
-                        fp_inps[j] = qlayer(fp_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
+                        x = fp_inps[j]
+                        if A is not None:
+                            # apply OrthoLET on input features: (B,L,D) x (D,D^T)
+                            x = torch.matmul(x, A.t())
+                        fp_inps[j] = qlayer(x.unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
                         if args.aug_loss:
-                            fp_inps_2[j] = qlayer(quant_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
+                            x2 = quant_inps[j]
+                            if A is not None:
+                                x2 = torch.matmul(x2, A.t())
+                            fp_inps_2[j] = qlayer(x2.unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
+
         # init smooth parameters
         set_quant_state(qlayer, weight_quant=False, act_quant=True)  # weight will be manually quantized before forward
         qlayer.let = args.let
@@ -238,14 +283,17 @@ def omniquant(
                                 
         if args.resume:
             qlayer.load_state_dict(omni_parameters[i], strict=False)
-        
 
         if args.epochs > 0:
             with torch.no_grad():
                 qlayer.float()      # required for AMP training
             # create optimizer
+            # include OrthoLET params if enabled
+            ortho_params = [{"params":[qlayer.ortho_u], "lr":args.let_lr}] if use_ortho else []
             optimizer = torch.optim.AdamW(
-                [{"params":let_parameters(qlayer, use_shift),"lr":args.let_lr}, {"params":lwc_parameters(qlayer),"lr":args.lwc_lr}],weight_decay=args.wd)
+                [{"params":let_parameters(qlayer, use_shift),"lr":args.let_lr},
+                {"params":lwc_parameters(qlayer),"lr":args.lwc_lr}] + ortho_params,
+                weight_decay=args.wd)
             loss_scaler = utils.NativeScalerWithGradNormCount()
             
             for epochs in range(args.epochs):
@@ -256,7 +304,13 @@ def omniquant(
                     # obtain output of quantization model
                     with traincast():
                         smooth_and_quant_temporary(qlayer, args, is_llama)
-                        quant_out = qlayer(quant_inps[index:index+args.batch_size,], attention_mask=attention_mask_batch,position_ids=position_ids)[0]
+                        # apply OrthoLET on the fly (training-time input transform)
+                        A = _maybe_build_A_on_qlayer(qlayer, model.config.hidden_size, dtype, dev) if use_ortho else None
+                        xq = quant_inps[index:index+args.batch_size,]
+                        if A is not None:
+                            xq = torch.matmul(xq, A.t())
+                        quant_out = qlayer(xq, attention_mask=attention_mask_batch,position_ids=position_ids)[0]
+
                         loss = loss_func(fp_inps[index:index+args.batch_size,], quant_out)
                         if args.aug_loss:
                             loss += loss_func(fp_inps_2[index:index+args.batch_size,], quant_out)
@@ -275,6 +329,24 @@ def omniquant(
             clear_temp_variable(qlayer)
             del optimizer
         qlayer.half() 
+        # --- absorb OrthoLET into weights before real smoothing/quantization ---
+        if use_ortho:
+            A_full = _maybe_build_A_on_qlayer(
+                qlayer, model.config.hidden_size, torch.float32, dev
+            )  # high precision for copy
+            with torch.no_grad():
+                for name, module in qlayer.named_modules():
+                    # absorb on input side: W <- W @ A
+                    if isinstance(module, (torch.nn.Linear, QuantLinear)):
+                        # do matmul in float32 for stability, then cast back
+                        W = module.weight.data
+                        if W.shape[1] != A_full.shape[0]:
+                            # e.g., MLP down_proj (in_features=intermediate_size) -> skip
+                            continue
+                        A = A_full.to(device=W.device, dtype=torch.float32)
+                        W32 = W.to(torch.float32)
+                        module.weight.data = (W32 @ A).to(W.dtype)
+
         # real smooth and quantization
         smooth_and_quant_inplace(qlayer, args, is_llama)
         if args.epochs>0:
