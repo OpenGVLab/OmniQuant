@@ -11,6 +11,7 @@ from pprint import pprint
 from parallel_utils import map_layers_to_multi_gpus, get_lowest_occupied_gpu
 import torch.nn as nn
 from quantize.omniquant import omniquant
+from quantize.gptq import gptq
 from tqdm import tqdm
 import utils
 from pathlib import Path
@@ -218,6 +219,7 @@ def main():
     parser.add_argument("--aug_loss", default=False, action="store_true", help="calculate additional loss with same input")
     parser.add_argument("--symmetric",default=False, action="store_true", help="symmetric quantization")
     parser.add_argument("--disable_zero_point",default=False, action="store_true", help="quantization without zero_point")
+    parser.add_argument("--gptq", default=False, action="store_true", help="use gptq for further compensation")
     parser.add_argument("--a_dynamic_method", type=str, default="per_token", choices=["per_token"])
     parser.add_argument("--w_dynamic_method", type=str, default="per_channel", choices=["per_channel"])
     parser.add_argument("--limit", type=int, default=-1)
@@ -351,6 +353,11 @@ def main():
             logger,
         )
         logger.info(time.time() - tick)
+        if args.gptq:
+            tick = time.time()
+            with torch.no_grad():
+                gptq(lm, args, dataloader, logger)
+            logger.info(time.time() - tick)
     if args.save_dir:
         # delete omni parameters
         for name, module in lm.model.named_modules():
