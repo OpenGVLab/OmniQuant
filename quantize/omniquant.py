@@ -214,7 +214,9 @@ def omniquant(
                         if args.aug_loss:
                             fp_inps_2[j] = qlayer(quant_inps[j].unsqueeze(0), attention_mask=attention_mask,position_ids=position_ids)[0]
         # init smooth parameters
-        set_quant_state(qlayer, weight_quant=False, act_quant=True)  # weight will be manually quantized before forward
+        # Issue OpenGVLab/OmniQuant#113
+        if args.abits < 16:
+            set_quant_state(qlayer, weight_quant=False, act_quant=True)  # weight will be manually quantized before forward
         qlayer.let = args.let
         use_shift = True 
         if is_llama or args.abits == 16:

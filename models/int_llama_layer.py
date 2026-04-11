@@ -67,7 +67,12 @@ class QuantLlamaAttention(nn.Module):
                 f" and `num_heads`: {self.num_heads})."
             )
 
-        self.rotary_emb = copy.deepcopy(org_module.rotary_emb)
+        if hasattr(org_module, "rotary_emb"):
+            self.rotary_emb = copy.deepcopy(org_module.rotary_emb)
+        else:
+            # In newer versions, it might be in the model config or
+            # handled globally, so we might set it to None or a placeholder
+            self.rotary_emb = None
 
         self.k_proj = QuantLinear(
             org_module.k_proj,
@@ -103,12 +108,12 @@ class QuantLlamaAttention(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
-        output_attentions: bool = False,
-        use_cache: bool = False,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        position_embeddings: tuple[torch.Tensor, torch.Tensor] | None = None,
+        attention_mask: torch.Tensor | None = None,
+        past_key_values=None,  # Cache
+        cache_position: torch.LongTensor | None = None,
+        **kwargs,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         bsz, q_len, _ = hidden_states.size()
 
         # query_states = self.q_proj(hidden_states)
@@ -119,20 +124,24 @@ class QuantLlamaAttention(nn.Module):
         value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
 
         kv_seq_len = key_states.shape[-2]
-        if past_key_value is not None:
-            kv_seq_len += past_key_value[0].shape[-2]
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+        if past_key_values is not None:
+            kv_seq_len += past_key_values[0].shape[-2]
+        
+        # New API for rotary embedding
+        cos, sin = position_embeddings
+        query_states, key_states = apply_rotary_pos_emb(
+            query_states, key_states, cos, sin
+        )
 
 
         # [bsz, nh, t, hd]
 
-        if past_key_value is not None:
+        if past_key_values is not None:
             # reuse k, v, self_attention
-            key_states = torch.cat([past_key_value[0], key_states], dim=2)
-            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+            key_states = torch.cat([past_key_values[0], key_states], dim=2)
+            value_states = torch.cat([past_key_values[1], value_states], dim=2)
 
-        past_key_value = (key_states, value_states) if use_cache else None
+        # past_key_value = (key_states, value_states) if use_cache else None
 
         # repeat k/v heads if n_kv_heads < n_heads
         key_states = repeat_kv(key_states, self.num_key_value_groups)
@@ -173,10 +182,10 @@ class QuantLlamaAttention(nn.Module):
 
         attn_output = self.o_proj(attn_output)
 
-        if not output_attentions:
-            attn_weights = None
+        # if not output_attentions:
+        #     attn_weights = None
 
-        return attn_output, attn_weights, past_key_value
+        return attn_output, attn_weights #, past_key_value
     
     def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
         # setting weight quantization here does not affect actual forward pass
@@ -213,12 +222,14 @@ class QuantLlamaDecoderLayer(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
-        position_ids: Optional[torch.LongTensor] = None,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
-        output_attentions: Optional[bool] = False,
-        use_cache: Optional[bool] = False,
-    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+        attention_mask: torch.Tensor | None = None,
+        position_ids: torch.LongTensor | None = None,
+        past_key_values=None,  # Cache
+        use_cache: bool | None = False,
+        cache_position: torch.LongTensor | None = None,
+        position_embeddings: tuple[torch.Tensor, torch.Tensor] | None = None,
+        **kwargs,
+    ) -> torch.Tensor:
         """
         Args:
             hidden_states (`torch.FloatTensor`): input to the layer of shape `(batch, seq_len, embed_dim)`
@@ -238,13 +249,15 @@ class QuantLlamaDecoderLayer(nn.Module):
 
 
         # Self Attention
-        hidden_states, self_attn_weights, present_key_value = self.self_attn(
+        hidden_states, _ = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             position_ids=position_ids,
-            past_key_value=past_key_value,
-            output_attentions=output_attentions,
+            past_key_values=past_key_values,
             use_cache=use_cache,
+            cache_position=cache_position,
+            position_embeddings=position_embeddings,
+            **kwargs,
         )
         hidden_states = residual + hidden_states
 
@@ -256,15 +269,15 @@ class QuantLlamaDecoderLayer(nn.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
 
-        outputs = (hidden_states,)
+        # outputs = (hidden_states,)
 
-        if output_attentions:
-            outputs += (self_attn_weights,)
+        # if output_attentions:
+        #     outputs += (self_attn_weights,)
 
-        if use_cache:
-            outputs += (present_key_value,)
+        # if use_cache:
+        #     outputs += (present_key_value,)
 
-        return outputs        
+        return hidden_states        
 
     def set_quant_state(self, weight_quant: bool = False, act_quant: bool = False):
         # setting weight quantization here does not affect actual forward pass
