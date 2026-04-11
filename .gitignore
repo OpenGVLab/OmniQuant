@@ -19,3 +19,4 @@ act_shifts/
 pre_quantized_models/
 temp.sh
 .venv/
+tmp.ipynb
