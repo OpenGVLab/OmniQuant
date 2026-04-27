@@ -93,10 +93,10 @@ def evaluate(lm, args, logger):
 
     if args.eval_ppl:
         # for dataset in ["wikitext2", "ptb", "c4","ptb-new",'c4-new']:
-        for dataset in ["wikitext2", "c4"]:
+        for dataset in ["wikitext2"]:
             cache_testloader = f'{args.cache_dir}/testloader_{args.model_family}_{dataset}_all.cache'
             if os.path.exists(cache_testloader):
-                testloader = torch.load(cache_testloader)
+                testloader = torch.load(cache_testloader, weights_only=False)
                 logger.info(f"load calibration from {cache_testloader}")
             else:
                 dataloader, testloader = get_loaders(
@@ -326,7 +326,7 @@ def main():
         # load calibration dataset
         cache_dataloader = f'{args.cache_dir}/dataloader_{args.model_family}_{args.calib_dataset}_{args.nsamples}.cache'
         if os.path.exists(cache_dataloader):
-            dataloader = torch.load(cache_dataloader)
+            dataloader = torch.load(cache_dataloader, weights_only=False)
             logger.info(f"load calibration from {cache_dataloader}")
         else:
             dataloader, _ = get_loaders(
@@ -340,8 +340,8 @@ def main():
         act_scales = None
         act_shifts = None
         if args.let:
-            act_scales = torch.load(args.act_scales)
-            act_shifts = torch.load(args.act_shifts)
+            act_scales = torch.load(args.act_scales, weights_only=False)
+            act_shifts = torch.load(args.act_shifts, weights_only=False)
         omniquant(
             lm,
             args,
