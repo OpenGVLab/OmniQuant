@@ -60,6 +60,8 @@ class QuantLlamaAttention(nn.Module):
         self.num_key_value_heads = config.num_key_value_heads
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = config.max_position_embeddings
+        
+        self.layer_idx = getattr(org_module, "layer_idx", None)
 
         if (self.head_dim * self.num_heads) != self.hidden_size:
             raise ValueError(
@@ -122,25 +124,21 @@ class QuantLlamaAttention(nn.Module):
         query_states = self.q_proj(hidden_states).view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states =self.k_proj(hidden_states).view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = self.v_proj(hidden_states).view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
-
-        kv_seq_len = key_states.shape[-2]
-        if past_key_values is not None:
-            kv_seq_len += past_key_values[0].shape[-2]
         
         # New API for rotary embedding
         cos, sin = position_embeddings
         query_states, key_states = apply_rotary_pos_emb(
             query_states, key_states, cos, sin
         )
+        
+        if past_key_values is not None:
+            key_states_aligned, value_states_aligned = past_key_values.update(
+                key_states_aligned, value_states_aligned, self.layer_idx
+            )
+        kv_seq_len = key_states_aligned.shape[-2]
 
 
         # [bsz, nh, t, hd]
-
-        if past_key_values is not None:
-            # reuse k, v, self_attention
-            key_states = torch.cat([past_key_values[0], key_states], dim=2)
-            value_states = torch.cat([past_key_values[1], value_states], dim=2)
-
         # past_key_value = (key_states, value_states) if use_cache else None
 
         # repeat k/v heads if n_kv_heads < n_heads
